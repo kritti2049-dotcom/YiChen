@@ -1,0 +1,17 @@
+[gd_scene format=3 uid="uid://csqcw8ty6q60u"]
+
+[ext_resource type="Script" uid="uid://bnq1i3unis4fq" path="res://system/battle_unit.gd" id="1_cxq0f"]
+[ext_resource type="Script" uid="uid://by1oanaloarve" path="res://scene/battle_demo.gd" id="1_sib02"]
+[ext_resource type="Resource" uid="uid://d2pwc6oselav" path="res://data/units/hero.tres" id="2_sib02"]
+[ext_resource type="Resource" uid="uid://csg2xpx7n1xer" path="res://data/units/enemy.tres" id="3_hyxxc"]
+
+[node name="BattleTest" type="Node2D" unique_id=403117604]
+script = ExtResource("1_sib02")
+
+[node name="HeroUnit" type="Node2D" parent="." unique_id=1676434733]
+script = ExtResource("1_cxq0f")
+unit_data = ExtResource("2_sib02")
+
+[node name="EnemyUnit" type="Node2D" parent="." unique_id=804046440]
+script = ExtResource("1_cxq0f")
+unit_data = ExtResource("3_hyxxc")

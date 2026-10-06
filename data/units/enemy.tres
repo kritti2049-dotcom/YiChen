@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="UnitData" format=3 uid="uid://csg2xpx7n1xer"]
+
+[ext_resource type="Texture2D" uid="uid://d257ffddlidy4" path="res://icon.svg" id="1_gmol4"]
+[ext_resource type="Script" uid="uid://vbuqkuk4gm05" path="res://data/unit_data.gd" id="2_misoa"]
+[ext_resource type="Script" uid="uid://b2p3ltp2s5o75" path="res://data/item_data.gd" id="3_bsm0o"]
+
+[resource]
+script = ExtResource("2_misoa")
+unit_name = "Hero"
+portrait = ExtResource("1_gmol4")
+metadata/_custom_type_script = "uid://vbuqkuk4gm05"
