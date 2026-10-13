@@ -1,161 +1,195 @@
-[gd_scene load_steps=2 format=3 uid="uid://dw6df5ns8kj11"]
+[gd_scene load_steps=4 format=3 uid="uid://dw6df5ns8kj11"]
 
 [ext_resource type="Script" path="res://scene/test_sect.gd" id="1_test"]
+[ext_resource type="Script" path="res://ui/ink_landscape.gd" id="2_land"]
+[ext_resource type="Script" path="res://ui/sect_view.gd" id="3_view"]
 
-[node name="TestSect" type="Control"]
+[node name="TestSect" type="Node2D"]
+script = ExtResource("1_test")
+
+[node name="BG" type="CanvasLayer" parent="."]
+layer = -1
+
+[node name="Landscape" type="Control" parent="BG"]
+unique_name_in_owner = true
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1_test")
+mouse_filter = 2
+script = ExtResource("2_land")
 
-[node name="BG" type="ColorRect" parent="."]
-layout_mode = 1
+[node name="SectView" type="Node2D" parent="."]
+unique_name_in_owner = true
+script = ExtResource("3_view")
+
+[node name="Camera" type="Camera2D" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, 260)
+zoom = Vector2(0.85, 0.85)
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="UIRoot" type="Control" parent="UI"]
+unique_name_in_owner = true
+layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.121569, 0.121569, 0.152941, 1)
+mouse_filter = 2
 
-[node name="Margin" type="MarginContainer" parent="."]
+[node name="TopBar" type="PanelContainer" parent="UI/UIRoot"]
 layout_mode = 1
-anchors_preset = 15
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 60.0
+grow_horizontal = 2
+
+[node name="VBox" type="VBoxContainer" parent="UI/UIRoot/TopBar"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Row" type="HBoxContainer" parent="UI/UIRoot/TopBar/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="ClockLabel" type="Label" parent="UI/UIRoot/TopBar/VBox/Row"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.85, 0.5, 1)
+theme_override_font_sizes/font_size = 20
+text = "วันที่ 1 · เช้า"
+
+[node name="PhaseBar" type="ProgressBar" parent="UI/UIRoot/TopBar/VBox/Row"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(90, 12)
+layout_mode = 2
+size_flags_vertical = 4
+max_value = 1.0
+show_percentage = false
+
+[node name="PauseButton" type="Button" parent="UI/UIRoot/TopBar/VBox/Row"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "หยุด/เดินเวลา (Spacebar)"
+text = "หยุดเวลา"
+
+[node name="SpeedButton" type="Button" parent="UI/UIRoot/TopBar/VBox/Row"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "x1"
+
+[node name="ResLabel" type="Label" parent="UI/UIRoot/TopBar/VBox/Row"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "เงิน"
+horizontal_alignment = 2
+clip_text = true
+text_overrun_behavior = 3
+
+[node name="NewsLabel" type="Label" parent="UI/UIRoot/TopBar/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.75, 0.7, 0.6, 1)
+theme_override_font_sizes/font_size = 13
+text = "ข่าวสาร"
+text_overrun_behavior = 3
+
+[node name="LeftPanel" type="PanelContainer" parent="UI/UIRoot"]
+layout_mode = 1
+anchors_preset = 9
+anchor_bottom = 1.0
+offset_left = 6.0
+offset_top = 66.0
+offset_right = 206.0
+offset_bottom = -6.0
+grow_vertical = 2
+
+[node name="Scroll" type="ScrollContainer" parent="UI/UIRoot/LeftPanel"]
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="Menu" type="VBoxContainer" parent="UI/UIRoot/LeftPanel/Scroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="RightPanel" type="PanelContainer" parent="UI/UIRoot"]
+layout_mode = 1
+anchors_preset = 11
+anchor_left = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-grow_horizontal = 2
+offset_left = -336.0
+offset_top = 66.0
+offset_right = -6.0
+offset_bottom = -6.0
+grow_horizontal = 0
 grow_vertical = 2
-theme_override_constants/margin_left = 30
-theme_override_constants/margin_top = 30
-theme_override_constants/margin_right = 30
-theme_override_constants/margin_bottom = 30
 
-[node name="VBox" type="VBoxContainer" parent="Margin"]
-layout_mode = 2
-theme_override_constants/separation = 20
-
-[node name="TopBar" type="HBoxContainer" parent="Margin/VBox"]
+[node name="VBox" type="VBoxContainer" parent="UI/UIRoot/RightPanel"]
 layout_mode = 2
 
-[node name="DayLabel" type="Label" parent="Margin/VBox/TopBar"]
+[node name="DisciplesTitle" type="Label" parent="UI/UIRoot/RightPanel/VBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 28
-text = "วันที่: 1"
+theme_override_font_sizes/font_size = 17
+text = "ศิษย์"
+horizontal_alignment = 1
 
-[node name="Spacer" type="Control" parent="Margin/VBox/TopBar"]
-layout_mode = 2
-size_flags_horizontal = 3
-
-[node name="MoneyLabel" type="Label" parent="Margin/VBox/TopBar"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_font_sizes/font_size = 28
-text = "เงิน: 1000"
-
-[node name="Spacer2" type="Control" parent="Margin/VBox/TopBar"]
-custom_minimum_size = Vector2(30, 0)
-layout_mode = 2
-
-[node name="FoodLabel" type="Label" parent="Margin/VBox/TopBar"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_font_sizes/font_size = 28
-text = "อาหาร: 100"
-
-[node name="MainContent" type="HBoxContainer" parent="Margin/VBox"]
+[node name="Scroll" type="ScrollContainer" parent="UI/UIRoot/RightPanel/VBox"]
 layout_mode = 2
 size_flags_vertical = 3
-theme_override_constants/separation = 20
+horizontal_scroll_mode = 0
 
-[node name="BuildingsPanel" type="VBoxContainer" parent="Margin/VBox/MainContent"]
+[node name="DiscipleList" type="VBoxContainer" parent="UI/UIRoot/RightPanel/VBox/Scroll"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 15
+theme_override_constants/separation = 4
 
-[node name="Label" type="Label" parent="Margin/VBox/MainContent/BuildingsPanel"]
+[node name="LogPanel" type="PanelContainer" parent="UI/UIRoot"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 212.0
+offset_top = -150.0
+offset_right = -342.0
+offset_bottom = -6.0
+grow_horizontal = 2
+grow_vertical = 0
+
+[node name="VBox" type="VBoxContainer" parent="UI/UIRoot/LogPanel"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 22
-text = "--- จัดการกิจกรรมในสำนัก ---"
-horizontal_alignment = 1
 
-[node name="BtnTrain" type="Button" parent="Margin/VBox/MainContent/BuildingsPanel"]
-custom_minimum_size = Vector2(0, 60)
+[node name="LogHeader" type="HBoxContainer" parent="UI/UIRoot/LogPanel/VBox"]
 layout_mode = 2
-text = "ส่งศิษย์ไปลานฝึกซ้อม (+EXP)"
 
-[node name="BtnHunt" type="Button" parent="Margin/VBox/MainContent/BuildingsPanel"]
-custom_minimum_size = Vector2(0, 60)
-layout_mode = 2
-text = "ส่งศิษย์ลงเขาทำภารกิจ (+เงิน, +อาหาร)"
-
-[node name="BtnBreakthrough" type="Button" parent="Margin/VBox/MainContent/BuildingsPanel"]
-custom_minimum_size = Vector2(0, 60)
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.8, 0.2, 1)
-text = "ช่วยศิษย์ทะลวงคอขวด (ลุ้นโอกาสสำเร็จ)"
-
-[node name="BtnLibrary" type="Button" parent="Margin/VBox/MainContent/BuildingsPanel"]
-custom_minimum_size = Vector2(0, 60)
-layout_mode = 2
-theme_override_colors/font_color = Color(0.5, 0.8, 1, 1)
-text = "หอตำรา (เรียนวิชาใหม่)"
-
-[node name="LabelInstruction" type="Label" parent="Margin/VBox/MainContent/BuildingsPanel"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.701961, 0.701961, 0.701961, 1)
-text = "คำแนะนำ: เลือกสั่งงานให้ลูกศิษย์ที่สถานะว่าง จากนั้นกดปุ่ม [ข้ามวัน] เพื่อให้เวลาเดินไป 1 วันและรับผลลัพธ์จากกิจกรรม"
-autowrap_mode = 2
-
-[node name="DisciplesPanel" type="VBoxContainer" parent="Margin/VBox/MainContent"]
+[node name="Label" type="Label" parent="UI/UIRoot/LogPanel/VBox/LogHeader"]
 layout_mode = 2
 size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 14
+text = "บันทึกเหตุการณ์"
 
-[node name="Label" type="Label" parent="Margin/VBox/MainContent/DisciplesPanel"]
+[node name="LogToggle" type="Button" parent="UI/UIRoot/LogPanel/VBox/LogHeader"]
+unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 22
-text = "--- สถานะศิษย์ ---"
-horizontal_alignment = 1
+text = "ย่อ"
 
-[node name="DiscipleList" type="RichTextLabel" parent="Margin/VBox/MainContent/DisciplesPanel"]
+[node name="EventLog" type="RichTextLabel" parent="UI/UIRoot/LogPanel/VBox"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
+theme_override_font_sizes/normal_font_size = 13
+theme_override_font_sizes/bold_font_size = 13
 bbcode_enabled = true
-text = ""
-
-[node name="LogsPanel" type="VBoxContainer" parent="Margin/VBox/MainContent"]
-layout_mode = 2
-size_flags_horizontal = 3
-
-[node name="Label" type="Label" parent="Margin/VBox/MainContent/LogsPanel"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 22
-text = "--- บันทึกเหตุการณ์ ---"
-horizontal_alignment = 1
-
-[node name="EventLog" type="RichTextLabel" parent="Margin/VBox/MainContent/LogsPanel"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_vertical = 3
-bbcode_enabled = true
-text = ""
-
-[node name="BottomBar" type="HBoxContainer" parent="Margin/VBox"]
-layout_mode = 2
-alignment = 1
-theme_override_constants/separation = 50
-
-[node name="BtnBack" type="Button" parent="Margin/VBox/BottomBar"]
-custom_minimum_size = Vector2(200, 60)
-layout_mode = 2
-theme_override_font_sizes/font_size = 24
-text = "กลับหน้าหลัก"
-
-[node name="BtnNextDay" type="Button" parent="Margin/VBox/BottomBar"]
-custom_minimum_size = Vector2(250, 60)
-layout_mode = 2
-theme_override_font_sizes/font_size = 24
-text = "ข้ามวัน (Next Day)"
+scroll_following = true

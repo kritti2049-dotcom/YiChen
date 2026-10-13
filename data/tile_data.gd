@@ -1,5 +1,5 @@
 extends Resource
-class_name TileData
+class_name MapTileData
 
 @export var tile_name: String = "Plains"
 @export var texture: Texture2D

@@ -2,108 +2,101 @@
 
 [ext_resource type="Script" path="res://scene/map/world_map.gd" id="1_map"]
 
-[node name="WorldMap" type="Control"]
-layout_mode = 3
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
+[node name="WorldMap" type="Node2D"]
 script = ExtResource("1_map")
 
-[node name="Background" type="ColorRect" parent="."]
-layout_mode = 1
-anchors_preset = 15
+[node name="Terrain" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="Overlay" type="Node2D" parent="."]
+unique_name_in_owner = true
+
+[node name="Travelers" type="Node2D" parent="."]
+unique_name_in_owner = true
+
+[node name="Camera" type="Camera2D" parent="."]
+unique_name_in_owner = true
+zoom = Vector2(1.6, 1.6)
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="TopBar" type="PanelContainer" parent="UI"]
+anchors_preset = 10
 anchor_right = 1.0
-anchor_bottom = 1.0
+offset_bottom = 50.0
 grow_horizontal = 2
-grow_vertical = 2
-color = Color(0.2, 0.3, 0.2, 1)
 
-[node name="MapContainer" type="Control" parent="."]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
+[node name="HBox" type="HBoxContainer" parent="UI/TopBar"]
+layout_mode = 2
+theme_override_constants/separation = 14
 
-[node name="Label" type="Label" parent="MapContainer"]
-layout_mode = 1
-anchors_preset = 5
-anchor_left = 0.5
-anchor_right = 0.5
-offset_left = -60.0
-offset_top = 20.0
-offset_right = 60.0
-offset_bottom = 43.0
-grow_horizontal = 2
-theme_override_font_sizes/font_size = 24
-text = "แผนที่โลก (World Map)"
+[node name="BackButton" type="Button" parent="UI/TopBar/HBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "< กลับหน้าสำนัก"
 
-[node name="BtnTown" type="Button" parent="MapContainer"]
-layout_mode = 0
-offset_left = 300.0
-offset_top = 200.0
-offset_right = 400.0
-offset_bottom = 250.0
-text = "เมืองเริ่มต้น"
+[node name="Title" type="Label" parent="UI/TopBar/HBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "แผนที่โลก"
 
-[node name="InfoPanel" type="Panel" parent="."]
-visible = false
-layout_mode = 1
-anchors_preset = 6
+[node name="DayLabel" type="Label" parent="UI/TopBar/HBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.95, 0.8, 0.5, 1)
+text = "วันที่ 1"
+
+[node name="SeedLabel" type="Label" parent="UI/TopBar/HBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.65, 0.55, 1)
+text = "Seed"
+
+[node name="PlayButton" type="Button" parent="UI/TopBar/HBox"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "ให้เวลาเดินแบบเรียลไทม์ ศิษย์จะเดินไปตามเส้นทาง"
+text = "เดินเวลา"
+
+[node name="SpeedButton" type="Button" parent="UI/TopBar/HBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "ความเร็ว x1"
+
+[node name="InfoPanel" type="PanelContainer" parent="UI"]
+unique_name_in_owner = true
+anchors_preset = 11
 anchor_left = 1.0
-anchor_top = 0.5
 anchor_right = 1.0
-anchor_bottom = 0.5
-offset_left = -300.0
-offset_top = -150.0
-offset_right = -20.0
-offset_bottom = 150.0
+anchor_bottom = 1.0
+offset_left = -350.0
+offset_top = 58.0
+offset_right = -8.0
+offset_bottom = -8.0
 grow_horizontal = 0
 grow_vertical = 2
 
-[node name="VBoxContainer" type="VBoxContainer" parent="InfoPanel"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
+[node name="Scroll" type="ScrollContainer" parent="UI/InfoPanel"]
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="InfoContent" type="VBoxContainer" parent="UI/InfoPanel/Scroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="HintLabel" type="Label" parent="UI"]
+anchors_preset = 2
+anchor_top = 1.0
 anchor_bottom = 1.0
 offset_left = 10.0
-offset_top = 10.0
-offset_right = -10.0
-offset_bottom = -10.0
-grow_horizontal = 2
-grow_vertical = 2
-theme_override_constants/separation = 10
-
-[node name="NameLabel" type="Label" parent="InfoPanel/VBoxContainer"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "ชื่อสถานที่"
-horizontal_alignment = 1
-
-[node name="DescLabel" type="Label" parent="InfoPanel/VBoxContainer"]
-layout_mode = 2
-text = "รายละเอียด..."
-autowrap_mode = 2
-
-[node name="TravelTimeLabel" type="Label" parent="InfoPanel/VBoxContainer"]
-layout_mode = 2
-text = "ใช้เวลาเดินทาง: X วัน"
-
-[node name="Spacer" type="Control" parent="InfoPanel/VBoxContainer"]
-layout_mode = 2
-size_flags_vertical = 3
-
-[node name="DispatchButton" type="Button" parent="InfoPanel/VBoxContainer"]
-layout_mode = 2
-text = "ส่งศิษย์"
-
-[node name="BackButton" type="Button" parent="."]
-layout_mode = 0
-offset_left = 20.0
-offset_top = 20.0
-offset_right = 120.0
-offset_bottom = 60.0
-text = "กลับเมนูหลัก"
+offset_top = -30.0
+offset_right = 600.0
+offset_bottom = -6.0
+grow_vertical = 0
+theme_override_colors/font_color = Color(0.15, 0.1, 0.05, 1)
+theme_override_colors/font_outline_color = Color(0.95, 0.9, 0.8, 1)
+theme_override_constants/outline_size = 4
+text = "ลากเมาส์เพื่อเลื่อนแผนที่ | ล้อเมาส์เพื่อซูม | คลิกสถานที่เพื่อดูข้อมูล"

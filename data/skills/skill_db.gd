@@ -6,6 +6,14 @@ class_name SkillDB
 
 enum Tier { MORTAL = 1, EARTH = 2, HEAVEN = 3, IMMORTAL = 4, DIVINE = 5 }
 
+## ชื่อระดับวิชา (index ตาม Tier, ช่อง 0 ไม่ใช้)
+const TIER_NAMES = ["", "มนุษย์", "ปฐพี", "นภา", "เซียน", "เทวะ"]
+const TIER_COLORS = [Color.WHITE, Color(0.85, 0.85, 0.85), Color(0.4, 0.9, 0.4), Color(0.4, 0.7, 1.0), Color(0.75, 0.45, 1.0), Color(1.0, 0.6, 0.15)]
+const TYPE_NAMES = {
+	"sword": "กระบี่/ดาบ", "spear": "ทวน", "palm": "หมัด/ฝ่ามือ", "internal": "ปราณ", "movement": "ตัวเบา",
+	"poison": "พิษ", "formation": "ค่ายกล", "hidden_weapon": "อาวุธลับ",
+}
+
 const SKILLS = {
 	# ==========================================
 	# ระดับ 1: ขั้นมนุษย์ (Mortal Tier) - 30 วิชา
@@ -119,6 +127,17 @@ const SKILLS = {
 	"ค่ายกลผนึกสวรรค์": { "tier": Tier.IMMORTAL, "type": "formation", "desc": "แช่แข็งเวลาและสกิลของศัตรูทั้งสนาม", "power": 0 },
 
 	# ==========================================
+	# วิชาสายทวน (ตระกูลหมิง / ราชสำนัก / เป่ยเหลียง / ทวนไร้ตำหนิ)
+	# ==========================================
+	"ทวนพื้นฐานทหารหลวง": { "tier": Tier.MORTAL, "type": "spear", "desc": "แทงตรง ปัด กวาด ตามตำราทหารราบ", "power": 13 },
+	"ทวนคุ้มภัยห้าทิศ": { "tier": Tier.MORTAL, "type": "spear", "desc": "หมุนทวนปกป้องขบวนคาราวานจากทุกทิศ", "power": 15 },
+	"ทวนคุณธรรมตระกูลหมิง": { "tier": Tier.EARTH, "type": "spear", "desc": "ด้ามทวนตั้งตรงดุจคุณธรรม แทงทะลุเกราะ", "power": 36 },
+	"ทวนม้าศึกทะลวงทัพ": { "tier": Tier.EARTH, "type": "spear", "desc": "พุ่งแทงด้วยแรงส่งเหมือนทหารม้าบุกทัพ", "power": 40 },
+	"ทวนเพลิงเหมันต์": { "tier": Tier.HEAVEN, "type": "spear", "desc": "วิชาลับเป่ยเหลียง ปลายทวนเย็นเยียบแต่เผาไหม้ดุจเพลิง", "power": 80 },
+	"ทวนไร้ตำหนิ": { "tier": Tier.HEAVEN, "type": "spear", "desc": "ทวนที่ไร้ช่องโหว่ แต่ละท่าเชื่อมต่อไม่มีจุดตาย", "power": 86 },
+	"ทวนมังกรกลืนฟ้า": { "tier": Tier.IMMORTAL, "type": "spear", "desc": "ปราณทวนพุ่งเป็นมังกรกลืนกินศัตรูทั้งแถว", "power": 145 },
+
+	# ==========================================
 	# ระดับ 5: ขั้นเทวะ (Divine Tier) - 5 วิชา (สุดยอดวิชาแห่งเกม)
 	# ==========================================
 	"บัญญัติพระเจ้าสร้างโลก": { "tier": Tier.DIVINE, "type": "internal", "desc": "ปรับเปลี่ยนกฎของสนามรบได้ตามใจชอบ", "power": 999 },
@@ -128,11 +147,73 @@ const SKILLS = {
 	"วิถีเซียนไร้ขอบเขต": { "tier": Tier.DIVINE, "type": "internal", "desc": "ผสานเป็นหนึ่งเดียวกับระบบเกม พลังทุกด้านคือ ∞", "power": 999 }
 }
 
+## วิชาที่สำนักคิดค้นเอง (หลอมรวมวิชา) { ชื่อ: { tier, type, desc, power, custom: true } }
+## ลงทะเบียนจาก SectData.custom_skills และวิชาตกทอด (Legacy) ใน ArchiveSys
+static var custom_skills := {}
+
+static func register_custom(skills: Dictionary) -> void:
+	for s in skills:
+		var info: Dictionary = skills[s]
+		# JSON เก็บตัวเลขเป็น float แปลงกลับเป็น int
+		custom_skills[s] = { "tier": int(info.tier), "type": str(info.type), "desc": str(info.desc), "power": int(info.power), "custom": true }
+
+# ══════════════════════════════════════════
+# ข้อมูลการต่อสู้บนกริด (BattleRules) — ค่าเริ่มต้นตามสาย วิชาใดใส่ฟิลด์เองได้ทับค่าเริ่ม
+# range = ระยะใช้ (ช่อง แบบ Manhattan) · shape = single/line/circle/self_ring · size = ความยาวเส้น/รัศมี
+# target = enemy/ally/self · mult = ตัวคูณดาเมจวิชา · effect = knockback/seal/poison/heal/shield/swift
+# ══════════════════════════════════════════
+const BATTLE_DEFAULTS = {
+	"sword": { "range": 1, "shape": "line", "size": 3, "target": "enemy", "mult": 1.25, "effect": "" },
+	"spear": { "range": 1, "shape": "line", "size": 2, "target": "enemy", "mult": 1.3, "effect": "knockback" },
+	"palm": { "range": 1, "shape": "single", "size": 0, "target": "enemy", "mult": 1.6, "effect": "knockback" },
+	"hidden_weapon": { "range": 5, "shape": "single", "size": 0, "target": "enemy", "mult": 1.2, "effect": "" },
+	"poison": { "range": 3, "shape": "circle", "size": 1, "target": "enemy", "mult": 0.7, "effect": "poison" },
+	"formation": { "range": 0, "shape": "self_ring", "size": 2, "target": "enemy", "mult": 0.8, "effect": "" },
+	"internal": { "range": 2, "shape": "single", "size": 0, "target": "enemy", "mult": 1.4, "effect": "" },
+	"movement": { "range": 0, "shape": "single", "size": 0, "target": "self", "mult": 0.0, "effect": "swift" },
+}
+const SEAL_WORDS = ["สกัดจุด", "แช่แข็ง", "ขยับไม่ได้", "กักขัง"]
+
+## สเปกการต่อสู้ของวิชา: ค่าเริ่มตามสาย + ฟิลด์ที่วิชานั้นกำหนดเอง + ค่าปราณ/คูลดาวน์ตามขั้น
+static func battle_spec(skill_name: String) -> Dictionary:
+	var info = get_skill(skill_name)
+	if info.is_empty(): return {}
+	var spec: Dictionary = BATTLE_DEFAULTS.get(info.type, BATTLE_DEFAULTS.internal).duplicate()
+	for k in ["range", "shape", "size", "target", "mult", "effect", "qi", "cd"]:
+		if info.has(k): spec[k] = info[k]
+	var tier = int(info.tier)
+	spec["qi"] = spec.get("qi", 6 + tier * 6)
+	spec["cd"] = spec.get("cd", [0, 0, 1, 1, 2, 3][clampi(tier, 0, 5)])
+	spec["type"] = info.type
+	spec["power"] = int(info.power)
+	spec["tier"] = tier
+	if info.type == "internal" and (info.desc.contains("ฟื้นฟู") or info.desc.contains("รักษา")):
+		spec.merge({ "target": "ally", "range": 3, "effect": "heal", "mult": 0.0 }, true)
+	elif info.type == "internal" and (info.desc.contains("เกราะ") or info.desc.contains("โล่")):
+		spec.merge({ "target": "self", "range": 0, "effect": "shield", "mult": 0.0 }, true)
+	if spec.effect == "" or spec.effect == "knockback":
+		for w in SEAL_WORDS:
+			if info.desc.contains(w): spec.effect = "seal"
+	if info.type == "poison" and tier >= 3: spec.effect = "gu"
+	return spec
+
 ## ดึงข้อมูลวิชา
 static func get_skill(skill_name: String) -> Dictionary:
 	if SKILLS.has(skill_name):
 		return SKILLS[skill_name]
-	return {}
+	return custom_skills.get(skill_name, {})
+
+## รายชื่อวิชาทั้งหมด (รวมวิชาที่คิดค้นเอง)
+static func all_skill_names() -> Array:
+	return SKILLS.keys() + custom_skills.keys()
+
+## สุ่มคัมภีร์ตามขั้นและสาย (ถ้าไม่มีสายนั้นในขั้นนั้น สุ่มจากทั้งขั้น)
+static func get_random_skill_by_tier_and_type(target_tier: int, type: String) -> String:
+	var pool = []
+	for s in SKILLS:
+		if SKILLS[s].tier == target_tier and SKILLS[s].type == type: pool.append(s)
+	if pool.is_empty(): return get_random_skill_by_tier(target_tier)
+	return pool.pick_random()
 
 ## สุ่มวิชาตามระดับ (Tier) เอาไว้ใช้เวลาดรอปหนังสือสกิล
 static func get_random_skill_by_tier(target_tier: int) -> String:

@@ -1,0 +1,95 @@
+﻿[gd_scene load_steps=3 format=3 uid="uid://iso12345"]
+
+[ext_resource type="Script" path="res://scene/map/isometric_sect.gd" id="1_iso"]
+
+[node name="IsometricSect" type="Node2D"]
+script = ExtResource("1_iso")
+
+[node name="TileMapLayer" type="TileMapLayer" parent="."]
+y_sort_enabled = true
+
+[node name="Camera2D" type="Camera2D" parent="."]
+zoom = Vector2(1.5, 1.5)
+
+[node name="UILayer" type="CanvasLayer" parent="."]
+
+[node name="TopBar" type="Panel" parent="UILayer"]
+custom_minimum_size = Vector2(0, 60)
+anchors_preset = 10
+anchor_right = 1.0
+grow_horizontal = 2
+
+[node name="HBox" type="HBoxContainer" parent="UILayer/TopBar"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 20
+alignment = 1
+
+[node name="DayLabel" type="Label" parent="UILayer/TopBar/HBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "วันที่ 1"
+
+[node name="PhaseLabel" type="Label" parent="UILayer/TopBar/HBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.8, 0.2, 1)
+theme_override_font_sizes/font_size = 20
+text = "☀️ เช้า"
+
+[node name="Spacer" type="Control" parent="UILayer/TopBar/HBox"]
+custom_minimum_size = Vector2(50, 0)
+layout_mode = 2
+
+[node name="MoneyLabel" type="Label" parent="UILayer/TopBar/HBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "เงิน: 0"
+
+[node name="FoodLabel" type="Label" parent="UILayer/TopBar/HBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "เสบียง: 0"
+
+[node name="BottomBar" type="Panel" parent="UILayer"]
+custom_minimum_size = Vector2(0, 80)
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 0
+
+[node name="HBox" type="HBoxContainer" parent="UILayer/BottomBar"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 20
+alignment = 1
+
+[node name="BtnDisciples" type="Button" parent="UILayer/BottomBar/HBox"]
+custom_minimum_size = Vector2(150, 50)
+layout_mode = 2
+size_flags_vertical = 4
+text = "จัดการลูกศิษย์"
+
+[node name="BtnBuild" type="Button" parent="UILayer/BottomBar/HBox"]
+custom_minimum_size = Vector2(150, 50)
+layout_mode = 2
+size_flags_vertical = 4
+text = "สร้างอาคาร"
+
+[node name="BtnWorld" type="Button" parent="UILayer/BottomBar/HBox"]
+custom_minimum_size = Vector2(150, 50)
+layout_mode = 2
+size_flags_vertical = 4
+text = "แผนที่โลก"
+
