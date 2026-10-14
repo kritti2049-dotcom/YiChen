@@ -218,7 +218,7 @@ func _draw_overlay() -> void:
 		o.draw_circle(sp, 13, Color(site_col, 0.2))
 		o.draw_arc(sp, 13, 0, TAU, 24, site_col, 1.5)
 		o.draw_rect(Rect2(sp + Vector2(-6, -3), Vector2(12, 8)), site_col)
-		o.draw_colored_polygon(PackedVector2Array([sp + Vector2(-9, -2), sp + Vector2(0, -10), sp + Vector2(9, -2)]), ink)
+		o.draw_colored_polygon(PackedVector2Array([sp + Vector2(-9, -2), sp + Vector2(0, -10), sp + Vector2(9, -2)]), Color(0.15, 0.1, 0.06))
 		if selected_id == "site:" + s.id:
 			o.draw_arc(sp, 17, 0, TAU, 32, Color(0.85, 0.2, 0.2), 2.5)
 		var s_label = "[ที่ตั้ง] " + s.name

@@ -25,28 +25,36 @@ static func _snapshot(sect: SectData) -> Dictionary:
 		"log_tail": sect.event_log.back() if not sect.event_log.is_empty() else null,
 	}
 
-## ข้ามถึงเช้าวันใหม่ คืนรายงาน { lines: Array[String], log: Array[String], stopped: String }
-static func skip_to_morning(sect: SectData, mgr: SectManager) -> Dictionary:
-	var before = _snapshot(sect)
-	var start_day = sect.current_day
-	var stopped = ""
-	var guard = 0
-	while not sect.is_game_over and guard < 2000:
-		guard += 1
+## ข้ามแบบทีละช่วง (ให้ฉากแสดงการนอนพัก/นาฬิกาเดินระหว่างจำลอง): begin -> step ซ้ำจนคืนค่าไม่ว่าง -> finish
+static func begin(sect: SectData) -> Dictionary:
+	return _snapshot(sect)
+
+## จำลองต่อไม่เกิน max_ticks · คืน "" = ยังไม่จบ, "done" = ถึงเช้าแล้ว, อื่นๆ = เหตุผลที่หยุด
+static func step(sect: SectData, mgr: SectManager, b: Dictionary, max_ticks: int) -> String:
+	for i in max_ticks:
+		if sect.is_game_over: return "done"
 		mgr.sim_tick()
 		if sect.phase_tick >= GlobalGame.TICKS_PER_PHASE:
 			GlobalGame.advance_phase(true)
-			if sect.current_day > start_day and sect.time_phase == 0: break
+			if sect.current_day > int(b.day) and sect.time_phase == 0: return "done"
 		if not sect.pending_event.is_empty():
-			stopped = "ศัตรูบุกสำนัก!" if sect.pending_event.get("type", "") == "raid" else "มีผู้มาเยือนที่ประตูสำนัก"
-			break
-		if not sect.pending_story.is_empty():
-			stopped = "มีเหตุการณ์สำคัญเกิดขึ้น"
-			break
-		if sect.pending_ending != "":
-			stopped = "สำนักมาถึงทางแยกสำคัญ"
-			break
-	return _report(sect, before, stopped)
+			return "ศัตรูบุกสำนัก!" if sect.pending_event.get("type", "") == "raid" else "มีผู้มาเยือนที่ประตูสำนัก"
+		if not sect.pending_story.is_empty(): return "มีเหตุการณ์สำคัญเกิดขึ้น"
+		if sect.pending_ending != "": return "สำนักมาถึงทางแยกสำคัญ"
+	return ""
+
+static func finish(sect: SectData, b: Dictionary, result: String) -> Dictionary:
+	return _report(sect, b, "" if result == "done" else result)
+
+## ข้ามถึงเช้าวันใหม่ทันที (ไม่มีภาพประกอบ) คืนรายงาน { lines, log, stopped }
+static func skip_to_morning(sect: SectData, mgr: SectManager) -> Dictionary:
+	var b = begin(sect)
+	var r = ""
+	var guard = 0
+	while r == "" and guard < 50:
+		r = step(sect, mgr, b, 100)
+		guard += 1
+	return finish(sect, b, r)
 
 static func _report(sect: SectData, b: Dictionary, stopped: String) -> Dictionary:
 	var lines: Array[String] = []

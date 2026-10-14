@@ -11,7 +11,8 @@ signal game_over
 const SLOT_COUNT = 3
 const PHASE_NAMES = ["เช้า", "บ่าย", "กลางคืน"]
 ## วินาทีจริงต่อ 1 ช่วงเวลา ที่ความเร็ว x1 (1 วัน = 3 ช่วง)
-const SECONDS_PER_PHASE = 20.0
+## 1 ช่วงเวลา (เช้า/บ่าย/ค่ำ) = 5 นาทีจริงที่ x1 → 1 วัน = 15 นาที (แบบ RimWorld) · x2 7.5 · x4 3.75 · x8 ~1.9 นาที
+const SECONDS_PER_PHASE = 300.0
 const SPEEDS = [1, 2, 4, 8]
 ## จังหวะจำลองต่อช่วงเวลา (ระบบศิษย์ทำงานทีละ tick ดู SectManager.sim_tick)
 const TICKS_PER_PHASE = 120

@@ -32,6 +32,9 @@ var _player: Node3D
 var _player_sprite: Sprite3D
 var _click_target = null
 var _zoom := 1.0
+## มุมหมุนกล้องรอบตัวละคร (เรเดียน) · ลากเมาส์ขวา หรือ Z / X ทีละ 45°
+var _yaw := 0.0
+var _yaw_target := 0.0
 var _attrs: CameraAttributesPractical
 var _backdrop: Node3D
 var _foliage: MultiMeshInstance3D
@@ -522,8 +525,9 @@ func _process(delta: float) -> void:
 		_update_animals_list()
 		_sync_foliage()
 		refresh()
-	_update_walkers(delta)
-	_update_animals(delta)
+	if not GlobalGame.paused: # หยุดเวลา = ศิษย์/สัตว์หยุดนิ่ง (ตัวเรายังเดินดูได้)
+		_update_walkers(delta)
+		_update_animals(delta)
 	_update_prompt()
 	_fade_occluders()
 	var t = Time.get_ticks_msec() / 1000.0
@@ -534,10 +538,13 @@ func _process(delta: float) -> void:
 func _move_player(delta: float) -> void:
 	if blocked: return
 	var dir = Vector3.ZERO
-	if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP): dir.z -= 1
-	if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN): dir.z += 1
-	if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT): dir.x -= 1
-	if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT): dir.x += 1
+	var inp = Vector2.ZERO
+	if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP): inp.y -= 1
+	if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN): inp.y += 1
+	if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT): inp.x -= 1
+	if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT): inp.x += 1
+	# เดินตามทิศกล้อง (W = เดินหนีกล้อง)
+	if inp != Vector2.ZERO: dir = cam_right() * inp.x + cam_forward() * -inp.y
 	if dir != Vector3.ZERO: _click_target = null
 	elif _click_target != null:
 		var to: Vector3 = _click_target - _player.position
@@ -559,12 +566,14 @@ func _move_player(delta: float) -> void:
 			_player.position = np
 			moved = true
 	if not moved: _click_target = null
-	if absf(dir.x) > 0.1: _player_sprite.flip_h = dir.x < 0
+	var side = dir.dot(cam_right())
+	if absf(side) > 0.1: _player_sprite.flip_h = side < 0
 	_player_sprite.position.y = absf(sin(Time.get_ticks_msec() / 1000.0 * 14.0)) * 0.06 if moved else 0.0
 
 func _update_camera(delta: float) -> void:
 	# มุมกล้องต่ำ (~28°) ใกล้ตัวละคร เห็นหน้าอาคาร แบบ HD-2D
-	var target = _player.position + Vector3(0, 4.6, 8.6) * _zoom
+	_yaw = lerp_angle(_yaw, _yaw_target, clampf(delta * 8.0, 0.0, 1.0)) if delta < 1.0 else _yaw_target
+	var target = _player.position + (Basis(Vector3.UP, _yaw) * Vector3(0, 4.6, 8.6)) * _zoom
 	_cam.position = _cam.position.lerp(target, clampf(delta * 6.0, 0.0, 1.0)) if delta < 1.0 else target
 	_cam.look_at(_player.position + Vector3(0, 1.0, 0))
 	HD2D.tilt_shift(_attrs, _cam.position.distance_to(_player.position), 3.0 * _zoom, 5.0 * _zoom, 0.11)
@@ -594,7 +603,8 @@ func _update_walkers(delta: float) -> void:
 		var moving = to.length() > 0.08
 		var spd = 2.4 if (to.length() > 4.0 or d.needs.get("travel", false)) else 0.9
 		n.position = n.position.move_toward(target, spd * delta)
-		if moving and absf(to.x) > 0.02: spr.flip_h = to.x < 0
+		var side = to.dot(cam_right())
+		if moving and absf(side) > 0.02: spr.flip_h = side < 0
 		spr.position.y = absf(sin(t * 10.0)) * 0.05 if moving else 0.0
 		var lbl: Label3D = n.get_node("Label")
 		lbl.text = "%s\n%s" % [d.disciple_name, SectView.activity_text(d)]
@@ -625,7 +635,8 @@ func _update_animals(delta: float) -> void:
 			s.set_meta("to", target)
 			s.set_meta("vel", maxf(0.3, s.position.distance_to(target) / interval))
 		var to = target - s.position
-		if absf(to.x) > 0.02: s.flip_h = to.x > 0
+		var side_a = to.dot(cam_right())
+		if absf(side_a) > 0.02: s.flip_h = side_a > 0
 		s.position = s.position.move_toward(target, float(s.get_meta("vel")) * delta)
 
 ## กอหญ้า/ดอกไม้ไหวตามลมบนช่องหญ้าที่ไม่มีตึก (สร้างใหม่เมื่อภูมิประเทศ/ตึกเปลี่ยน)
@@ -655,10 +666,13 @@ func _sync_foliage() -> void:
 ## ต้นไม้ที่บังระหว่างกล้องกับผู้เล่นจะจางลง (แบบ HD-2D)
 func _fade_occluders() -> void:
 	var pp = _player.position
+	var back = -cam_forward()
+	var right = cam_right()
 	for c in _trees:
 		var s: Sprite3D = _trees[c]
-		var dz = s.position.z - pp.z
-		var fade = dz > 0.3 and dz < 9.0 * _zoom and absf(s.position.x - pp.x) < 2.6
+		var rel = s.position - pp
+		var dz = rel.dot(back) # ระยะไปทางกล้อง
+		var fade = dz > 0.3 and dz < 9.0 * _zoom and absf(rel.dot(right)) < 2.6
 		if fade != s.has_meta("faded"):
 			if fade:
 				s.set_meta("faded", true)
@@ -688,8 +702,25 @@ func _update_prompt() -> void:
 		var inst = sect.instance(_near_uid)
 		_prompt.text = "[E] " + (("เข้า " + BuildingDB.inst_name(inst)) if int(inst.level) > 0 else "%s (กำลังก่อสร้าง)" % BuildingDB.inst_name(inst))
 
+## ทิศขวา/หน้า (แนวราบ) ของกล้องปัจจุบัน
+func cam_right() -> Vector3:
+	return Basis(Vector3.UP, _yaw) * Vector3.RIGHT
+
+func cam_forward() -> Vector3:
+	return Basis(Vector3.UP, _yaw) * Vector3.FORWARD
+
+func player_position() -> Vector3:
+	return _player.position
+
 func _unhandled_input(event: InputEvent) -> void:
 	if blocked: return
+	if event is InputEventMouseMotion and event.button_mask & MOUSE_BUTTON_MASK_RIGHT:
+		_yaw_target -= event.relative.x * 0.008
+		_yaw = _yaw_target
+		return
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode in [KEY_Z, KEY_X]:
+		_yaw_target += PI / 4.0 * (1.0 if event.keycode == KEY_Z else -1.0)
+		return
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode in [KEY_E, KEY_F]:
 		if _near_uid != "":
 			building_entered.emit(_near_uid)

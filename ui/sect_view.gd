@@ -278,6 +278,7 @@ func _process(delta: float) -> void:
 		var has = not sect.construction_sites().is_empty()
 		if has or _had_sites: refresh()
 		_had_sites = has
+	if GlobalGame.paused: return # หยุดเวลา = ทุกคน/สัตว์หยุดนิ่ง
 	_update_animals(delta)
 	# ตึกที่มีภาพเคลื่อนไหว (กองไฟ ค่ายกล ไฟไหม้) วาดซ้ำทุกเฟรม
 	for inst in sect.structures:
@@ -375,6 +376,13 @@ func _update_animals(delta: float) -> void:
 				sp.offset.y = -26.0
 		# สัตว์เลี้ยงสีอุ่นขึ้นเล็กน้อย หมาป่าที่ล่าอยู่แดงเรื่อ
 		sp.modulate = Color(1, 0.95, 0.85) if a.tame else (Color(1, 0.8, 0.8) if a.state == "hunt" else Color.WHITE)
+
+## วางภาพศิษย์ไว้ที่ตำแหน่งข้อมูลทันที (ไม่เดินไหลมา)
+func snap_walker(d: DiscipleData) -> void:
+	refresh()
+	if _walkers.has(d):
+		_walkers[d].position = iso(d.pos)
+		_walkers[d].set_meta("wt", iso(d.pos))
 
 func is_night() -> bool:
 	return sect != null and sect.time_phase == 2

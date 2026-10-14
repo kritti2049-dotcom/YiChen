@@ -18,6 +18,9 @@ var speed_mult := 1.0
 var sneaking := false
 var _path := PackedVector2Array()
 var _sprite: Sprite2D
+## ทิศที่ปุ่ม D (ขวา) และ W (หน้า) พาไป ในพิกัดโลก 2D (ฉาก 3D ที่หมุนกล้องได้ตั้งค่านี้)
+var move_right := Vector2.RIGHT
+var move_forward := Vector2.UP
 var _t := 0.0
 
 static func create(d: DiscipleData, p_layout) -> CityPlayer:
@@ -69,7 +72,7 @@ func _physics_process(delta: float) -> void:
 	var speed = SPEED * speed_mult * (SNEAK_MULT if sneaking else (RUN_MULT if Input.is_key_pressed(KEY_SHIFT) else 1.0))
 	if input != Vector2.ZERO:
 		_path.clear()
-		velocity = input.normalized() * speed
+		velocity = (move_right * input.x + move_forward * -input.y).normalized() * speed
 	elif not _path.is_empty():
 		var to = _path[0] - global_position
 		if to.length() < 4.0:

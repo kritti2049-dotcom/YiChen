@@ -76,7 +76,7 @@ func _ready() -> void:
 	GlobalGame.phase_changed.connect(func(_p): _update_time_of_day())
 	_update_time_of_day(true)
 	if CityDB.is_sect_node(city_id): _enable_3d()
-	_say("%s: เดินด้วย WASD หรือคลิก · [E] ปฏิสัมพันธ์ · Shift วิ่ง · [N] ข้ามเวลา" % city.name)
+	_say("%s: เดินด้วย WASD หรือคลิก · [E] ปฏิสัมพันธ์ · Shift วิ่ง · [N] ข้ามเวลา · ลากเมาส์ขวา/Z X หมุนกล้อง" % city.name)
 
 ## สำนักอื่น: แสดงผลแบบ HD-2D (ซ่อนภาพ 2D แต่ระบบชน/NPC/ยาม/จุดปฏิสัมพันธ์ 2D ยังทำงาน)
 func _enable_3d() -> void:
@@ -405,11 +405,16 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
 			KEY_N: skip_phase()
+			KEY_Z, KEY_X:
+				if _view3d != null: _view3d.yaw_target += PI / 4.0 * (1.0 if event.keycode == KEY_Z else -1.0)
 			KEY_I: _open_team()
 			KEY_M: _open_map()
 			KEY_ESCAPE: _close_window()
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT and _window.is_empty():
 		player.walk_to(_view3d.screen_to_world2d(event.position) if _view3d != null else get_global_mouse_position())
+	elif _view3d != null and event is InputEventMouseMotion and event.button_mask & MOUSE_BUTTON_MASK_RIGHT:
+		_view3d.yaw_target -= event.relative.x * 0.008
+		_view3d.yaw = _view3d.yaw_target
 	elif event is InputEventMouseButton and event.pressed and _window.is_empty() and _view3d != null:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP: _view3d.zoom = clampf(_view3d.zoom / 1.1, 0.6, 2.2)
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN: _view3d.zoom = clampf(_view3d.zoom * 1.1, 0.6, 2.2)

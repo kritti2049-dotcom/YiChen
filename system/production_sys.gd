@@ -233,6 +233,7 @@ static func is_building(sect: SectData, d: DiscipleData) -> bool:
 
 ## จัดตำแหน่งภาพของศิษย์คนเดียว (เรียกทันทีเมื่อมอบหมาย/ถอดถอน ให้เห็นเดินไปที่ตึกเลย)
 static func place_one(sect: SectData, d: DiscipleData) -> void:
+	if sect.total_ticks < int(d.needs.get("manual_until", -1)): return # เจ้าสำนักเพิ่งเดินเองมาหยุดตรงนี้
 	if d.needs.get("ordered", -1) == sect.current_day: return # กำลังทำงานตามคำสั่ง ยืนอยู่หน้างาน
 	var inst = sect.instance(d.post) if d.post != "" else {}
 	# กำลังเดินไปสร้างไซต์ (construction_step ขยับตำแหน่งให้เอง) ไม่วาร์ป
@@ -285,7 +286,7 @@ static func construction_points(sect: SectData) -> float:
 ## ก่อสร้างโดยศิษย์จริง: ทุก CONSTRUCTION_STEP tick ศิษย์ว่าง/ช่างค่ายช่างเดินไปที่ไซต์ (ขยับตำแหน่งจริง WALK_STEP ช่อง)
 ## แต้มก่อสร้างเข้าไซต์ก็ต่อเมื่อศิษย์ถึงไซต์แล้วเท่านั้น หลอดจึงค่อยๆ ขึ้นตามจำนวนคนที่ยืนสร้างอยู่
 const CONSTRUCTION_STEP = 6
-const WALK_STEP = 0.9
+const WALK_STEP = 4.0
 const REACH = 1.6
 
 static func construction_step(sect: SectData, mgr: SectManager) -> void:

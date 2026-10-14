@@ -116,12 +116,47 @@ func _build_menu() -> void:
 # ══════════════════════════════════════════
 
 ## ข้ามไปเช้าพรุ่งนี้ (กด [N] หรือปุ่มบนแถบบน ใช้ได้ทุกช่วงเวลา) — จำลองครบทุก tick แล้วขึ้นรายงานสรุป
+var _skipping := false
+
 func _skip_night() -> void:
-	if not test_sect.pending_event.is_empty() or not test_sect.pending_story.is_empty() or test_sect.is_game_over: return
-	var rep = DaySkip.skip_to_morning(test_sect, sect_manager)
-	%SectView.refresh()
+	if _skipping or not test_sect.pending_event.is_empty() or not test_sect.pending_story.is_empty() or test_sect.is_game_over: return
+	_skipping = true
+	_close_window()
+	var was_paused = GlobalGame.paused
+	GlobalGame.paused = true
+	# ม่านพักผ่อน: จอค่อยๆ มืด นาฬิกาเดินเร็ว ระบบจำลองไปทีละช่วง แล้วค่อยสว่างพร้อมรายงาน
+	var veil = ColorRect.new()
+	veil.color = Color(0.02, 0.03, 0.08, 0.0)
+	veil.set_anchors_preset(Control.PRESET_FULL_RECT)
+	veil.mouse_filter = Control.MOUSE_FILTER_STOP
+	%UIRoot.add_child(veil)
+	var msg = UIKit.label("", 24, Color(0.9, 0.9, 1.0))
+	msg.set_anchors_preset(Control.PRESET_CENTER)
+	msg.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	msg.autowrap_mode = TextServer.AUTOWRAP_OFF
+	veil.add_child(msg)
+	var tw = veil.create_tween()
+	tw.tween_property(veil, "color:a", 0.88, 0.5)
+	await tw.finished
+	var b = DaySkip.begin(test_sect)
+	var result = ""
+	while result == "":
+		result = DaySkip.step(test_sect, sect_manager, b, 12) # ราว 2 วินาทีต่อคืน: เห็นนาฬิกาเดินจริง
+		msg.text = "ศิษย์ทั้งสำนักพักผ่อน...\n%s" % GlobalGame.get_clock_text()
+		%SectView.refresh()
+		await get_tree().create_timer(0.06).timeout
+	var rep = DaySkip.finish(test_sect, b, result)
 	if _walk3d != null: _walk3d.refresh()
 	_list_dirty = true
+	msg.text = "รุ่งอรุณ · %s" % GlobalGame.get_clock_text() if result == "done" else "สะดุ้งตื่น! %s" % result
+	var tw2 = veil.create_tween()
+	tw2.tween_interval(0.5)
+	tw2.tween_property(veil, "color:a", 0.0, 0.6)
+	await tw2.finished
+	veil.queue_free()
+	GlobalGame.paused = was_paused
+	_skipping = false
 	_open_window("รายงานประจำวัน", func(c): _build_day_report(c, rep), Vector2(760, 560))
 
 func _build_day_report(c: VBoxContainer, rep: Dictionary) -> void:
@@ -165,16 +200,23 @@ func _toggle_walk() -> void:
 		_walk3d.setup(test_sect, d)
 		_walk3d.building_entered.connect(_on_building_clicked)
 	else:
+		# จำตำแหน่งที่เดินไปถึง: ตัวละครยืนตรงนั้นต่อ (ไม่วาร์ปกลับจุดเดิม) ราว 2 ช่วงเวลาก่อนกลับไปทำงาน
+		var me: DiscipleData = _walk3d.disciple
+		var p3: Vector3 = _walk3d.player_position()
+		me.pos = Vector2(p3.x, p3.z)
+		me.needs["manual_until"] = test_sect.total_ticks + GlobalGame.TICKS_PER_PHASE * 2
 		_walk3d.queue_free()
 		_walk3d = null
 		%Camera.make_current()
+		%Camera.position = SectView.iso(me.pos)
+		%SectView.snap_walker(me)
 	%SectView.visible = not on
 	$BG.visible = not on
 	# ซ่อนแผงรายชื่อ/บันทึกให้เห็นฉากเต็มตาตอนเดิน (เมนูซ้ายยังอยู่)
 	$UI/UIRoot/RightPanel.visible = not on
 	$UI/UIRoot/LogPanel.visible = not on
 	_walk_button.text = "กลับมุมมองผู้บริหาร (Tab)" if on else "เดินในสำนัก (Tab)"
-	if on: UIKit.toast(%UIRoot, "%s เดินในสำนัก: WASD/คลิกเดิน · Shift วิ่ง · ล้อเมาส์ซูม · หน้าอาคารกด [E] (ความเร็ว x%.2f จากความว่องไว)" % [d.disciple_name, StatSys.walk_speed_mult(d)])
+	if on: UIKit.toast(%UIRoot, "%s เดินในสำนัก: WASD/คลิกเดิน · Shift วิ่ง · ล้อเมาส์ซูม · ลากเมาส์ขวา หรือ Z X หมุนกล้อง · หน้าอาคารกด [E] (ความเร็ว x%.2f จากความว่องไว)" % [d.disciple_name, StatSys.walk_speed_mult(d)])
 
 # ── อีเวนต์เนื้อเรื่อง (หยุดเวลาจนกว่าผู้เล่นจะเลือก) ──
 

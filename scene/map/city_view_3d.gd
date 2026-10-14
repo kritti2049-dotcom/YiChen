@@ -12,6 +12,8 @@ const TILE_COLORS = [Color.WHITE, Color(0.6, 0.58, 0.54), Color(0.74, 0.7, 0.62)
 var scene: Node # CityScene
 var layout: CityLayout
 var zoom := 1.0
+var yaw := 0.0
+var yaw_target := 0.0
 var _attrs: CameraAttributesPractical
 var _backdrop: Node3D
 
@@ -408,7 +410,12 @@ func _process(delta: float) -> void:
 			s3.texture = HD2D.outlined(spr2.texture)
 			s3.pixel_size = UNIT_H / maxf(1.0, spr2.texture.get_height())
 			s3.offset = Vector2(0, spr2.texture.get_height() / 2.0)
-		s3.flip_h = spr2.flip_h
+		# หันซ้าย/ขวาตามทิศบนจอ (กล้องหมุนได้)
+		var last: Vector3 = m.get_meta("last", m.position)
+		var mv = m.position - last
+		m.set_meta("last", m.position)
+		var r3b = Basis(Vector3.UP, yaw) * Vector3.RIGHT
+		if mv.length() > 0.002: s3.flip_h = mv.dot(r3b) < 0
 		s3.modulate = spr2.modulate
 		s3.position.y = -spr2.position.y / CityLayout.TILE
 		m.visible = n.visible
@@ -418,7 +425,13 @@ func _process(delta: float) -> void:
 			_mirrors.erase(n)
 	if scene.player != null and is_instance_valid(scene.player):
 		var pp = to3(scene.player.global_position)
-		var target = pp + Vector3(0, 4.6, 8.6) * zoom
+		yaw = lerp_angle(yaw, yaw_target, clampf(delta * 8.0, 0.0, 1.0))
+		var target = pp + (Basis(Vector3.UP, yaw) * Vector3(0, 4.6, 8.6)) * zoom
+		# ให้ปุ่มเดิน WASD อิงทิศกล้อง
+		var r3 = Basis(Vector3.UP, yaw) * Vector3.RIGHT
+		var f3 = Basis(Vector3.UP, yaw) * Vector3.FORWARD
+		scene.player.move_right = Vector2(r3.x, r3.z)
+		scene.player.move_forward = Vector2(f3.x, f3.z)
 		_cam.position = _cam.position.lerp(target, clampf(delta * 6.0, 0.0, 1.0)) if _cam.position != Vector3.ZERO else target
 		_cam.look_at(pp + Vector3(0, 1.0, 0))
 		HD2D.tilt_shift(_attrs, _cam.position.distance_to(pp), 3.0 * zoom, 5.0 * zoom, 0.11)
