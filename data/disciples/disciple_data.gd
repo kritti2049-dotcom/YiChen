@@ -80,6 +80,13 @@ class_name DiscipleData
 @export var master: DiscipleData
 ## รายชื่อวิชาที่เรียนรู้แล้ว (ใส่ชื่อวิชาเป็น String ไปก่อน)
 @export var learned_skills: Array[String] = []
+## วิชาที่เจ้าสำนักมอบหมายให้ศึกษา (จากหอตำรา) และความคืบหน้า 0-100
+@export var study_skill: String = ""
+## ปักหมุด (กดหัวใจ) ให้แสดงในแผงด้านขวาของหน้าสำนัก
+@export var favorite: bool = false
+@export var study_progress: float = 0.0
+## วันล่าสุดที่ตรัสรู้วิชาเอง (คูลดาวน์ SkillQuestSys.INSIGHT_COOLDOWN)
+@export var last_insight_day: int = -999
 
 # ──────────────────────────────────────────
 # 2.5) Equipment - ของสวมใส่

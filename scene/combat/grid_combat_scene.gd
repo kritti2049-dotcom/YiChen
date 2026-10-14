@@ -29,6 +29,10 @@ var speed := 1.0
 var _world: Node3D
 var _cam: Camera3D
 var _cam_base: Vector3
+## กล้องปรับได้ระหว่างศึก: ล้อเมาส์ซูม (0.55-1.5) · WASD/ลูกศร หรือลากเมาส์กลางเพื่อเลื่อน
+var _cam_look := Vector3.ZERO
+var _view_zoom := 1.0
+var _pan := Vector3.ZERO
 var _marks := {} # Vector2i -> MeshInstance3D
 var _mats := {}
 var _torch_lights: Array[OmniLight3D] = []
@@ -278,6 +282,7 @@ func _build_world() -> void:
 	# สนามใหญ่กว่ามาตรฐาน 12x6 = ถอยกล้องออกให้เห็นครบ
 	var zoom = maxf(1.0, maxf(BattleState.W / 12.0, BattleState.H / 6.0))
 	_cam_base = Vector3(BattleState.W / 2.0, 0.0, BattleState.H / 2.0) + Vector3(0, 11.5, 9.0) * zoom
+	_cam_look = Vector3(BattleState.W / 2.0, -0.4, BattleState.H / 2.0 + 0.7)
 	_cam.position = _cam_base
 	_world.add_child(_cam)
 	_cam.look_at(Vector3(BattleState.W / 2.0, -0.4, BattleState.H / 2.0 + 0.7))
@@ -989,7 +994,7 @@ func _update_aim_info() -> void:
 	var txt = ""
 	if not cur.is_empty() and cur.team == 1: txt = "[center][color=#f99]ตาของ %s[/color][/center]" % cur.name
 	elif mode == "idle" and not cur.is_empty():
-		txt = "[center]ตาของคุณ — คลิกช่องสีฟ้าเพื่อเดิน · เลือกการ์ดวิชา (1-%d) แล้วคลิกช่องสีส้ม · Enter จบเทิร์น[/center]" % mini(9, cur.skills.size() + 1)
+		txt = "[center]ตาของคุณ — คลิกช่องสีฟ้าเพื่อเดิน · เลือกการ์ดวิชา (1-%d) แล้วคลิกช่องสีส้ม · Enter จบเทิร์น · ล้อเมาส์ซูม · WASD เลื่อนกล้อง[/center]" % mini(9, cur.skills.size() + 1)
 	elif mode == "aim":
 		var sp = BattleRules.spec(cur, sel_action)
 		sp["name"] = sel_action
@@ -1059,9 +1064,10 @@ func _process(delta: float) -> void:
 	if _shake > 0.0:
 		_shake = maxf(0.0, _shake - delta)
 		var k = 0.08 * (_shake / 0.2)
-		_cam.position = _cam_base + Vector3(randf_range(-k, k), randf_range(-k, k), 0)
+		_cam.position = _cam_pos() + Vector3(randf_range(-k, k), randf_range(-k, k), 0)
 	else:
-		_cam.position = _cam_base
+		_cam.position = _cam_pos()
+	_pan_keys(delta)
 
 # ══════════════════════════════════════════
 # จังหวะเทิร์น
@@ -1161,7 +1167,29 @@ func _after_player_step() -> void:
 # อินพุต
 # ══════════════════════════════════════════
 
+## ตำแหน่งกล้อง: ซูมตามแนวสายตา (มุมเดิม) + เลื่อนแนวราบ
+func _cam_pos() -> Vector3:
+	return _cam_look + (_cam_base - _cam_look) * _view_zoom + _pan
+
+func _pan_keys(delta: float) -> void:
+	var d = Vector3.ZERO
+	if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT): d.x -= 1
+	if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT): d.x += 1
+	if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP): d.z -= 1
+	if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN): d.z += 1
+	if d != Vector3.ZERO: _move_pan(d.normalized() * 9.0 * _view_zoom * delta)
+
+func _move_pan(d: Vector3) -> void:
+	_pan = (_pan + d).clamp(Vector3(-BattleState.W / 2.0, 0, -BattleState.H / 2.0 - 2), Vector3(BattleState.W / 2.0, 0, BattleState.H / 2.0 + 2))
+
 func _unhandled_input(event: InputEvent) -> void:
+	# กล้อง: ใช้ได้ตลอด (แม้ตาศัตรู)
+	if event is InputEventMouseButton and event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+		_view_zoom = clampf(_view_zoom * (0.9 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1.1), 0.55, 1.5)
+		return
+	if event is InputEventMouseMotion and event.button_mask & MOUSE_BUTTON_MASK_MIDDLE:
+		_move_pan(Vector3(-event.relative.x, 0, -event.relative.y) * 0.02 * _view_zoom)
+		return
 	if mode not in ["idle", "aim"]: return
 	if event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_RIGHT: _cancel_aim()

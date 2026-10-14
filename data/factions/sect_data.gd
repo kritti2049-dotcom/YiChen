@@ -197,6 +197,7 @@ func ensure_defaults() -> void:
 	AnimalSys.init_world(self)
 	RosterSys.init_world(self)
 	LandmarkSys.init_world(self)
+	SkillQuestSys.ensure_steles(self)
 
 ## เซฟเก่าใช้แผนที่สุ่มแบบเดิม: ล้างข้อมูลยุทธภพเก่าเพื่อสร้างใหม่ตามแผนที่ตำนาน และเรียกศิษย์ที่อยู่นอกสำนักกลับบ้าน
 func _migrate_lore_world() -> void:

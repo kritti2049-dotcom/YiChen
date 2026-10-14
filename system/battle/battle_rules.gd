@@ -69,8 +69,11 @@ const ARENA_DEFAULT = Vector2i(12, 6)
 const CIRCLE_CONTEXTS = { "arena": Vector2i(11, 8), "spar": Vector2i(10, 7), "roster_spar": Vector2i(10, 7), "recruit_duel": Vector2i(9, 7) }
 ## ประเภทจุดบนแผนที่ที่สุ่มเป็นลานวงกลมได้ (ต่อจุด คงที่): แดนลับ = วงกลมเสมอ, ป่า/ถ้ำ = บางจุดเป็นลานโล่งกลางป่า/โถงถ้ำ
 const CIRCLE_CHANCE = { "secret": 1.0, "wild": 0.3, "dungeon": 0.4 }
-const ARENA_MIN = Vector2i(8, 5)
-const ARENA_MAX = Vector2i(18, 8)
+const ARENA_MIN = Vector2i(11, 7)
+const ARENA_MAX = Vector2i(24, 11)
+## ขยายสนามทุกแบบ (กว้าง x1.35, ลึก +2 แถว) ให้มีที่เดินอ้อม/ตีหลัง/ใช้วิชาพื้นที่
+const WIDEN_X = 1.35
+const WIDEN_Y = 2
 
 ## ขนาดสนามของศึกนี้: บริบท (ลานประลอง/บุกสำนัก/ตรอกเมือง) > ประเภทจุดบนแผนที่ (เมือง/ถ้ำ/แดนลับ) > ภูมิภาค
 ## แต่ละจุดบนแผนที่ต่างกันเล็กน้อยอีกชั้น (คงที่ต่อจุด) และศึกคนเยอะสนามกว้างขึ้น
@@ -95,6 +98,7 @@ static func arena_size(ctx: Dictionary, unit_count: int) -> Vector2i:
 		var h = absi(hash(node_id))
 		size += Vector2i(h % 3 - 1, (h / 3) % 3 - 1)
 	if unit_count > 8: size.x += 2
+	size = Vector2i(roundi(size.x * WIDEN_X), size.y + WIDEN_Y)
 	return size.clamp(ARENA_MIN, ARENA_MAX)
 
 ## รูปทรงสนาม (คงที่ต่อบริบท/จุดบนแผนที่ ไม่ใช้ตัวสุ่มของศึก)
@@ -114,7 +118,7 @@ static func apply_arena_size(ctx: Dictionary, unit_count: int) -> Vector2i:
 	var s = arena_size(ctx, unit_count)
 	if shape == "circle":
 		var ctype: String = ctx.get("type", "")
-		if CIRCLE_CONTEXTS.has(ctype): s = CIRCLE_CONTEXTS[ctype]
+		if CIRCLE_CONTEXTS.has(ctype): s = Vector2i(roundi(CIRCLE_CONTEXTS[ctype].x * WIDEN_X), CIRCLE_CONTEXTS[ctype].y + WIDEN_Y)
 		# วงกลมเสียช่องตามมุม: ลึกอย่างน้อย 7 และไม่แบนเกิน
 		s.y = clampi(maxi(s.y + 1, 7), ARENA_MIN.y, ARENA_MAX.y)
 		s.x = clampi(mini(s.x, s.y * 2), ARENA_MIN.x, ARENA_MAX.x)
@@ -150,11 +154,14 @@ static func _place_obstacles(st: BattleState, ctx: Dictionary) -> void:
 	match ctx.get("type", ""):
 		"raid", "siege", "spar", "arena": kind = "rock"; n = st.rng.randi_range(1, 3)
 		"city_guard": kind = "rock"
+	# สนามใหญ่ = สิ่งกีดขวาง/หญ้าสูงมากขึ้นตามพื้นที่ (เทียบสนามมาตรฐาน 12x6)
+	var area_k = float(BattleState.W * BattleState.H) / 72.0
+	n = roundi(n * area_k)
 	for i in n:
 		var c = Vector2i(st.rng.randi_range(3, BattleState.W - 4), st.rng.randi_range(0, BattleState.H - 1))
 		if not st.in_grid(c): continue
 		st.blocked[c] = kind if st.rng.randf() < 0.7 else ("rock" if kind == "tree" else "tree")
-	for i in st.rng.randi_range(3, 7):
+	for i in roundi(st.rng.randi_range(3, 7) * area_k):
 		var c = Vector2i(st.rng.randi_range(1, BattleState.W - 2), st.rng.randi_range(0, BattleState.H - 1))
 		if st.in_grid(c) and not st.blocked.has(c): st.grass[c] = true
 
@@ -167,9 +174,12 @@ static func _place_team(st: BattleState, team: int, _cols: Array) -> void:
 	for x in BattleState.W:
 		for y in BattleState.H:
 			if st.in_grid(Vector2i(x, y)): cells.append(Vector2i(x, y))
+	# สนามกว้าง: ทีมเริ่มขยับเข้ามาจากขอบ ให้ระยะห่างสองฝ่ายใกล้เคียงสนามมาตรฐาน (ยังถอยไปขอบซ้ายเพื่อหนีได้)
+	var inset = clampi((BattleState.W - 12) / 2, 0, 4)
+	var home = inset if team == 0 else BattleState.W - 1 - inset
 	cells.sort_custom(func(a, b):
-		var ka = a.x if team == 0 else BattleState.W - 1 - a.x
-		var kb = b.x if team == 0 else BattleState.W - 1 - b.x
+		var ka = absi(a.x - home) * 2 + (1 if (team == 0 and a.x > home) or (team == 1 and a.x < home) else 0)
+		var kb = absi(b.x - home) * 2 + (1 if (team == 0 and b.x > home) or (team == 1 and b.x < home) else 0)
 		if ka != kb: return ka < kb
 		return absf(a.y - cy) < absf(b.y - cy))
 	for i in mini(list.size(), cells.size()):

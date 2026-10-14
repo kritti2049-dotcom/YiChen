@@ -38,6 +38,10 @@ func _ready() -> void:
 	%SpeedButton.pressed.connect(func():
 		GlobalGame.cycle_speed()
 		_update_clock())
+	var skip_btn = UIKit.button("ข้ามไปพรุ่งนี้ [N]", _skip_night)
+	skip_btn.tooltip_text = "จำลองเวลาจนถึงเช้าวันถัดไป (ก่อสร้าง/ผลิต/ศึกษาเดินครบ) แล้วสรุปให้ดู · หยุดเองถ้ามีเรื่องให้ตัดสินใจ"
+	%SpeedButton.get_parent().add_child(skip_btn)
+	%SpeedButton.get_parent().move_child(skip_btn, %SpeedButton.get_index() + 1)
 	%LogToggle.pressed.connect(func():
 		%EventLog.visible = not %EventLog.visible
 		%LogPanel.offset_top = -150 if %EventLog.visible else -40
@@ -105,17 +109,43 @@ func _build_menu() -> void:
 		b.custom_minimum_size = Vector2(0, 40)
 		b.add_theme_color_override("font_color", item[1])
 		%Menu.add_child(b)
-	%Menu.add_child(UIKit.label("ลากเพื่อเลื่อนกล้อง | ล้อเมาส์ซูม\nคลิกอาคาร/ศิษย์ในลานสำนัก\nSpacebar = หยุดเวลา · N = ข้ามคืน (ตอนกลางคืน)", 12, WuxiaTheme.PAPER_DIM))
+	%Menu.add_child(UIKit.label("ลากเพื่อเลื่อนกล้อง | ล้อเมาส์ซูม\nคลิกอาคาร/ศิษย์ในลานสำนัก\nSpacebar = หยุดเวลา · N = ข้ามไปพรุ่งนี้", 12, WuxiaTheme.PAPER_DIM))
 
 # ══════════════════════════════════════════
 # เวลา
 # ══════════════════════════════════════════
 
-## กลางคืน: กด [N] เร่งเวลาข้ามถึงเช้า (ระบบยังจำลองครบทุก tick)
+## ข้ามไปเช้าพรุ่งนี้ (กด [N] หรือปุ่มบนแถบบน ใช้ได้ทุกช่วงเวลา) — จำลองครบทุก tick แล้วขึ้นรายงานสรุป
 func _skip_night() -> void:
-	if test_sect.time_phase != 2 or not test_sect.pending_event.is_empty(): return
-	GlobalGame.advance_phase()
-	UIKit.toast(%UIRoot, "ข้ามคืนถึงเช้าวันที่ %d" % test_sect.current_day, Color(1, 0.9, 0.6))
+	if not test_sect.pending_event.is_empty() or not test_sect.pending_story.is_empty() or test_sect.is_game_over: return
+	var rep = DaySkip.skip_to_morning(test_sect, sect_manager)
+	%SectView.refresh()
+	if _walk3d != null: _walk3d.refresh()
+	_list_dirty = true
+	_open_window("รายงานประจำวัน", func(c): _build_day_report(c, rep), Vector2(760, 560))
+
+func _build_day_report(c: VBoxContainer, rep: Dictionary) -> void:
+	if rep.stopped != "":
+		c.add_child(UIKit.label("⚠ หยุดข้ามเวลา: %s — ตัดสินใจก่อนแล้วค่อยข้ามต่อ" % rep.stopped, 16, Color(1, 0.6, 0.4)))
+	var body = RichTextLabel.new()
+	body.bbcode_enabled = true
+	body.fit_content = true
+	body.add_theme_font_size_override("normal_font_size", 15)
+	body.text = "
+".join(rep.lines)
+	c.add_child(body)
+	if not rep.log.is_empty():
+		c.add_child(UIKit.section("เหตุการณ์ระหว่างนั้น (%d)" % rep.log.size()))
+		var lg = RichTextLabel.new()
+		lg.bbcode_enabled = true
+		lg.fit_content = true
+		lg.add_theme_font_size_override("normal_font_size", 13)
+		lg.text = "
+".join(rep.log.slice(-25).map(func(t): return "• " + t))
+		c.add_child(lg)
+	c.add_child(UIKit.button("ข้ามต่ออีกวัน [N]", func():
+		_close_window()
+		_skip_night(), rep.stopped != ""))
 
 ## เปิด/ปิดโหมดเดิน: ใช้เจ้าสำนัก (หรือศิษย์ที่อยู่ในสำนัก) เป็นอวตาร
 func _toggle_walk() -> void:
@@ -258,14 +288,30 @@ func _update_header() -> void:
 	news.append("ความยาก: " + BuildingDB.diff(s.difficulty).name)
 	%NewsLabel.text = "  |  ".join(news)
 
-	%DisciplesTitle.text = "ศิษย์ %d / %d คน" % [s.get_active_disciples().size(), s.get_max_disciples()]
+	var favs = s.get_active_disciples().filter(func(d): return d.favorite or d.is_founder).size()
+	%DisciplesTitle.text = "ศิษย์ที่ปักหมุด %d · ทั้งหมด %d / %d คน" % [favs, s.get_active_disciples().size(), s.get_max_disciples()]
 
 ## รายชื่อศิษย์ด้านขวา: สร้างแถวครั้งเดียวต่อคนแล้วอัปเดตค่าในที่เดิม (ไม่สร้างปุ่มใหม่ทุกครั้ง — กันภาพสะดุด)
 var _rows := {} # DiscipleData -> { box, btn, mood, fill, status }
 
+## แผงขวา: แสดงเฉพาะศิษย์ที่ปักหมุด (หัวใจ) + เจ้าสำนัก · ดูทั้งหมดได้จากปุ่ม "ทำเนียบศิษย์"
+var _roster_btn: Button
+var _fav_hint: Label
+
 func _sync_disciple_list() -> void:
+	if _roster_btn == null:
+		_roster_btn = UIKit.button("ทำเนียบศิษย์ (ดูทั้งหมด)", func(): _open_window("ทำเนียบศิษย์", _build_roster_window, Vector2(1000, 640)))
+		var vb = %DiscipleList.get_parent().get_parent()
+		vb.add_child(_roster_btn)
+		vb.move_child(_roster_btn, 1)
+		_fav_hint = UIKit.label("ยังไม่ได้ปักหมุดใคร — เปิดทำเนียบศิษย์แล้วกด ♡ ที่การ์ด เพื่อให้ขึ้นที่นี่", 12, WuxiaTheme.PAPER_DIM)
+		vb.add_child(_fav_hint)
+		vb.move_child(_fav_hint, 2)
+	_roster_btn.text = "ทำเนียบศิษย์ (ดูทั้งหมด %d คน)" % test_sect.get_active_disciples().size()
 	var seen := {}
-	for d in test_sect.get_active_disciples():
+	var shown = test_sect.get_active_disciples().filter(func(d): return d.favorite or d.is_founder)
+	_fav_hint.visible = shown.size() <= 1
+	for d in shown:
 		seen[d] = true
 		var r = _rows.get(d)
 		if r == null or not is_instance_valid(r.box):
@@ -293,6 +339,16 @@ func _make_disciple_row(d: DiscipleData) -> Dictionary:
 %s
 พลังรบรวม %d | ชื่อเสียง %d" % [d.realm_name, d.get_realm_multiplier(), d.get_status_text(), d.get_power_rating(), d.fame])
 	row.add_child(btn)
+	if not d.is_founder:
+		var unpin = Button.new()
+		unpin.text = "♥"
+		unpin.tooltip_text = "เลิกปักหมุด"
+		unpin.add_theme_color_override("font_color", Color(1, 0.45, 0.5))
+		unpin.pressed.connect(func():
+			d.favorite = false
+			_list_dirty = true
+			_window_dirty = true)
+		row.add_child(unpin)
 	var mood = ProgressBar.new()
 	mood.custom_minimum_size = Vector2(70, 10)
 	mood.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -335,6 +391,177 @@ func _update_disciple_row(d: DiscipleData, r: Dictionary) -> void:
 	if r.get("stressed") != stressed:
 		r["stressed"] = stressed
 		r.status.add_theme_color_override("font_color", Color(1, 0.4, 0.35) if stressed else WuxiaTheme.PAPER_DIM)
+
+# ── ทำเนียบศิษย์: การ์ด (หน้าสี่เหลี่ยม + ตัวละครยืน) กรอง/เรียงได้ ──
+var _rf_status := 0
+var _rf_style := 0
+var _rf_sort := 0
+var _rf_query := ""
+const RF_STATUS = ["ทั้งหมด", "ปักหมุด ♥", "ว่างงาน", "ประจำตึก", "บาดเจ็บ/ป่วย", "ออกภารกิจ", "เครียดหนัก", "ใกล้คอขวด"]
+const RF_SORT = ["พลังรบ", "ขั้นพลัง", "ชื่อ", "อารมณ์", "ชื่อเสียง"]
+
+func _roster_match(d: DiscipleData) -> bool:
+	if _rf_query != "" and not d.disciple_name.contains(_rf_query): return false
+	match _rf_status:
+		1: if not (d.favorite or d.is_founder): return false
+		2: if not (d.post == "" and d.is_available()): return false
+		3: if d.post == "": return false
+		4: if d.injury_days <= 0 and d.ailments.is_empty(): return false
+		5: if d.status != DiscipleData.DiscipleStatus.MISSION: return false
+		6: if d.stress < StressSystem.WARN_AT: return false
+		7:
+			var info = CultivationSys.get_realm_info(d.level)
+			if not info.is_bottleneck: return false
+	if _rf_style > 0:
+		var t: String = MasterySys.TYPES.keys()[_rf_style - 1]
+		if MasterySys.best_type(d) != t: return false
+	return true
+
+func _rf_label(t: String) -> Label:
+	var l = UIKit.label(t, 13, WuxiaTheme.PAPER_DIM)
+	l.autowrap_mode = TextServer.AUTOWRAP_OFF
+	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	return l
+
+func _build_roster_window(c: VBoxContainer) -> void:
+	# แถบกรอง
+	var bar = HFlowContainer.new()
+	bar.add_theme_constant_override("h_separation", 8)
+	var st = OptionButton.new()
+	for s in RF_STATUS: st.add_item(s)
+	st.selected = _rf_status
+	st.item_selected.connect(func(i):
+		_rf_status = i
+		_refresh_window())
+	bar.add_child(_rf_label("สถานะ:"))
+	bar.add_child(st)
+	var sty = OptionButton.new()
+	sty.add_item("ทุกสาย")
+	for t in MasterySys.TYPES: sty.add_item(MasterySys.type_name(t))
+	sty.selected = _rf_style
+	sty.item_selected.connect(func(i):
+		_rf_style = i
+		_refresh_window())
+	bar.add_child(_rf_label("สายถนัด:"))
+	bar.add_child(sty)
+	var so = OptionButton.new()
+	for s in RF_SORT: so.add_item(s)
+	so.selected = _rf_sort
+	so.item_selected.connect(func(i):
+		_rf_sort = i
+		_refresh_window())
+	bar.add_child(_rf_label("เรียงตาม:"))
+	bar.add_child(so)
+	var q = LineEdit.new()
+	q.placeholder_text = "ค้นชื่อ แล้วกด Enter"
+	q.text = _rf_query
+	q.custom_minimum_size = Vector2(160, 0)
+	q.text_submitted.connect(func(t):
+		_rf_query = t.strip_edges()
+		_refresh_window())
+	bar.add_child(q)
+	c.add_child(bar)
+	# รายชื่อหลังกรอง/เรียง (พลังรบคำนวณครั้งเดียวต่อคน)
+	var list = test_sect.get_active_disciples().filter(_roster_match)
+	var power := {}
+	for d in list: power[d] = d.get_power_rating()
+	match _rf_sort:
+		0: list.sort_custom(func(a, b): return power[a] > power[b])
+		1: list.sort_custom(func(a, b): return a.level > b.level)
+		2: list.sort_custom(func(a, b): return a.disciple_name < b.disciple_name)
+		3: list.sort_custom(func(a, b): return a.mood > b.mood)
+		4: list.sort_custom(func(a, b): return a.fame > b.fame)
+	c.add_child(UIKit.label("แสดง %d จาก %d คน · กด ♡ เพื่อปักหมุดไว้ที่แผงขวา · กดการ์ดเพื่อดูประวัติ" % [list.size(), test_sect.get_active_disciples().size()], 13, WuxiaTheme.BRONZE))
+	var grid = GridContainer.new()
+	grid.columns = 4
+	grid.add_theme_constant_override("h_separation", 8)
+	grid.add_theme_constant_override("v_separation", 8)
+	c.add_child(grid)
+	for d in list: grid.add_child(_roster_card(d, power[d]))
+
+func _roster_card(d: DiscipleData, pwr: int) -> Control:
+	var card = Button.new()
+	card.custom_minimum_size = Vector2(205, 232)
+	card.pressed.connect(func(): _on_disciple_clicked(d))
+	var sb = StyleBoxFlat.new()
+	sb.bg_color = Color(0.13, 0.11, 0.09, 0.95)
+	sb.border_color = Color(1, 0.75, 0.4) if (d.favorite or d.is_founder) else Color(0.45, 0.38, 0.26)
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(6)
+	card.add_theme_stylebox_override("normal", sb)
+	var hov = sb.duplicate()
+	hov.bg_color = Color(0.22, 0.18, 0.12, 0.98)
+	card.add_theme_stylebox_override("hover", hov)
+	var v = VBoxContainer.new()
+	v.set_anchors_preset(Control.PRESET_FULL_RECT)
+	v.offset_left = 6
+	v.offset_right = -6
+	v.offset_top = 6
+	v.offset_bottom = -6
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_theme_constant_override("separation", 2)
+	card.add_child(v)
+	# รูปหน้าสี่เหลี่ยม + ตัวละครยืนเต็มตัว
+	var pics = HBoxContainer.new()
+	pics.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pics.alignment = BoxContainer.ALIGNMENT_CENTER
+	var face = TextureRect.new()
+	face.texture = ArtGen.get_portrait(d)
+	face.custom_minimum_size = Vector2(84, 84)
+	face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	face.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	face.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var face_bg = PanelContainer.new()
+	var fsb = StyleBoxFlat.new()
+	fsb.bg_color = CultivationSys.get_aura_color(d.element, d.level).darkened(0.55)
+	fsb.border_color = Color(0.7, 0.6, 0.4)
+	fsb.set_border_width_all(1)
+	face_bg.add_theme_stylebox_override("panel", fsb)
+	face_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	face_bg.add_child(face)
+	pics.add_child(face_bg)
+	var body = TextureRect.new()
+	body.texture = HD2D.outlined(ArtGen.get_figure(d))
+	body.custom_minimum_size = Vector2(60, 84)
+	body.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	body.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	body.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	body.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pics.add_child(body)
+	v.add_child(pics)
+	var nm = UIKit.label(("★ " if d.is_founder else "") + d.disciple_name, 15, Color(1, 0.92, 0.75))
+	nm.autowrap_mode = TextServer.AUTOWRAP_OFF
+	nm.clip_text = true
+	nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	nm.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(nm)
+	for t in [
+		["%s" % d.realm_name, CultivationSys.get_aura_color(d.element, d.level).lightened(0.3)],
+		["พลังรบ %d · %s" % [pwr, MasterySys.type_name(MasterySys.best_type(d)) if MasterySys.best_type(d) != "" else "ยังไม่ถนัดสายใด"], WuxiaTheme.PAPER],
+		[(BuildingDB.inst_name(test_sect.instance(d.post)) if d.post != "" and not test_sect.instance(d.post).is_empty() else d.get_status_text()), WuxiaTheme.PAPER_DIM],
+		["อารมณ์ %d · เครียด %d%%" % [int(d.mood), int(d.stress)], Color(1, 0.45, 0.4) if d.stress >= StressSystem.WARN_AT else WuxiaTheme.PAPER_DIM],
+	]:
+		var l = UIKit.label(t[0], 11, t[1])
+		l.autowrap_mode = TextServer.AUTOWRAP_OFF
+		l.clip_text = true
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		v.add_child(l)
+	if not d.is_founder:
+		var heart = Button.new()
+		heart.text = "♥" if d.favorite else "♡"
+		heart.tooltip_text = "เลิกปักหมุด" if d.favorite else "ปักหมุดไว้ที่แผงขวา"
+		heart.add_theme_font_size_override("font_size", 18)
+		heart.add_theme_color_override("font_color", Color(1, 0.4, 0.5) if d.favorite else Color(0.8, 0.75, 0.7))
+		heart.flat = true
+		heart.position = Vector2(170, 2)
+		heart.pressed.connect(func():
+			d.favorite = not d.favorite
+			_list_dirty = true
+			_refresh_window())
+		card.add_child(heart)
+	return card
 
 func _on_sect_changed() -> void:
 	_list_dirty = true
@@ -465,7 +692,7 @@ func _goto_hub(id: String, tab: int) -> void:
 	var big = Vector2(920, 640)
 	match id:
 		"work": _open_hub("work", "ตึกและงาน", [["สร้าง / ย้ายตึก", _build_build_window], ["รายการตึก", _build_structures_window], ["มอบหมายศิษย์", _build_assign_window], ["สั่งงานบนแผนที่", _build_orders_window]], big, tab)
-		"people": _open_hub("people", "ศิษย์", [["ประตูสำนัก (ผู้สมัคร)", _build_applicant_window], ["นักโทษ", func(c): SimWindows.prisoners(c, test_sect, sect_manager, _refresh_window)]], big, tab)
+		"people": _open_hub("people", "ศิษย์", [["ทำเนียบศิษย์", _build_roster_window], ["ประตูสำนัก (ผู้สมัคร)", _build_applicant_window], ["นักโทษ", func(c): SimWindows.prisoners(c, test_sect, sect_manager, _refresh_window)]], big, tab)
 
 ## หน้า "ภาพรวมสำนัก": สถานะที่ต้องรู้ + แจ้งเตือนสิ่งที่ติดขัด + ปุ่มลัด
 func _build_overview_window(c: VBoxContainer) -> void:
@@ -514,7 +741,7 @@ func _build_overview_window(c: VBoxContainer) -> void:
 	row.add_child(UIKit.button("สร้างตึก", func(): _goto_hub("work", 0)))
 	row.add_child(UIKit.button("มอบหมายศิษย์", func(): _goto_hub("work", 2)))
 	row.add_child(UIKit.button("สั่งงานบนแผนที่", func(): _goto_hub("work", 3)))
-	row.add_child(UIKit.button("ผู้สมัครที่ประตู", func(): _goto_hub("people", 0)))
+	row.add_child(UIKit.button("ผู้สมัครที่ประตู", func(): _goto_hub("people", 1)))
 	c.add_child(row)
 
 func _close_window() -> void:
@@ -841,6 +1068,19 @@ func _open_event() -> void:
 				_close_event()
 				StorytellerSystem.auto_defend(test_sect, sect_manager)
 				update_ui()))
+		"peddler":
+			_event_window = UIKit.open_window(%UIRoot, "พ่อค้าเร่ขายคัมภีร์", Vector2(640, 320))
+			var c: VBoxContainer = _event_window.content
+			var info = SkillDB.get_skill(ev.skill)
+			c.add_child(UIKit.label("'คัมภีร์ %s ขั้น%s ของแท้แน่นอนขอรับ! ข้าได้มาจากสำนักเก่าที่ล่มสลาย'" % [ev.skill, SkillDB.TIER_NAMES[int(info.get("tier", 1))]], 16, Color(1, 0.9, 0.6)))
+			c.add_child(UIKit.label("ราคา %d เงิน · คัมภีร์จากพ่อค้าเร่บางเล่มเป็นของปลอม (เสี่ยงราว 1 ใน 3)" % ev.price, 14, WuxiaTheme.PAPER_DIM))
+			c.add_child(UIKit.button("ซื้อ (%d)" % ev.price, func():
+				_close_event()
+				UIKit.toast(%UIRoot, RegEx.create_from_string("\\[/?[a-z]+[^\\]]*\\]").sub(SkillQuestSys.buy_peddler(test_sect, sect_manager), "", true), Color(1, 0.9, 0.6))
+				update_ui(), test_sect.money < int(ev.price)))
+			c.add_child(UIKit.button("ไล่ไป", func():
+				test_sect.pending_event = {}
+				_close_event()))
 		_:
 			test_sect.pending_event = {}
 			GlobalGame.paused = false
@@ -869,8 +1109,9 @@ func _build_library_window(c: VBoxContainer) -> void:
 			c.add_child(UIKit.row(text, [UIKit.button("เริ่ม", func(): GlobalGame.controller.request_research.emit(tier),
 				locked or test_sect.money < cost.money or test_sect.get_material_count("scripture_fragment") < cost.fragments)], SkillDB.TIER_COLORS[tier]))
 
-	c.add_child(UIKit.section("คัมภีร์ในหอตำรา (%d วิชา) - ให้ศิษย์ทำงาน [ศึกษาตำรา] เพื่อเรียน" % test_sect.library_skills.size()))
-	c.add_child(UIKit.label("การศึกษาคัมภีร์ให้ความชำนาญอาวุธสายนั้น วิชาขั้นสูงต้องชำนาญถึงเกณฑ์ก่อนจึงจะเรียนสำเร็จ", 13, WuxiaTheme.PAPER_DIM))
+	_build_study_section(c)
+	c.add_child(UIKit.section("คัมภีร์ในหอตำรา (%d วิชา) — กด \"มอบให้ศิษย์\" เพื่อเลือกคนศึกษา" % test_sect.library_skills.size()))
+	c.add_child(UIKit.label("ศิษย์ประจำหอตำราศึกษาวันละ 2 ครั้ง · ศิษย์ว่างศึกษาเองได้วันละ 1 ครั้ง · มีคนในสำนักรู้วิชานั้นอยู่แล้ว = ช่วยสอน เร็วขึ้น x1.5 · วิชาขั้นสูงต้องชำนาญถึงเกณฑ์ก่อน", 13, WuxiaTheme.PAPER_DIM))
 	var sorted_skills = test_sect.library_skills.duplicate()
 	sorted_skills.sort_custom(func(a, b): return SkillDB.get_skill(a).get("tier", 1) < SkillDB.get_skill(b).get("tier", 1))
 	for s in sorted_skills:
@@ -878,10 +1119,74 @@ func _build_library_window(c: VBoxContainer) -> void:
 		if info.is_empty(): continue
 		var req = MasterySys.required_level(s)
 		var req_text = " [ต้องชำนาญ%s ระดับ %d]" % [MasterySys.type_name(MasterySys.skill_type(s)), req] if req > 0 else ""
-		c.add_child(UIKit.label("[%s] %s%s (%s, พลัง %d)%s - %s" % [SkillDB.TIER_NAMES[info.tier], s, " ★วิชาประจำสำนัก" if info.get("custom", false) else "", SkillDB.TYPE_NAMES.get(info.type, info.type), info.power, req_text, info.desc], 14, SkillDB.TIER_COLORS[info.tier]))
+		var knowers = test_sect.get_active_disciples().filter(func(d): return d.learned_skills.has(s)).size()
+		c.add_child(UIKit.row("[%s] %s%s (%s, พลัง %d)%s - %s · รู้แล้ว %d คน" % [SkillDB.TIER_NAMES[info.tier], s, " ★วิชาประจำสำนัก" if info.get("custom", false) else "", SkillDB.TYPE_NAMES.get(info.type, info.type), info.power, req_text, info.desc, knowers], [
+			UIKit.button("มอบให้ศิษย์", func():
+				_study_pick = s
+				_refresh_window())], SkillDB.TIER_COLORS[info.tier]))
+		if _study_pick == s: _build_study_picker(c, s)
 
 	c.add_child(UIKit.section("คิดค้นวิชาเฉพาะของสำนัก (หลอมรวมวิชา)"))
 	_build_fusion(c)
+
+## ── มอบหมายวิชาให้ศิษย์ศึกษา ──
+var _study_pick := ""
+
+## รายการศิษย์ที่กำลังศึกษา + แถบความคืบหน้า + ยกเลิก
+func _build_study_section(c: VBoxContainer) -> void:
+	var studying = test_sect.get_active_disciples().filter(func(d): return d.study_skill != "")
+	c.add_child(UIKit.section("ศิษย์ที่กำลังศึกษาวิชา (%d คน)" % studying.size()))
+	if studying.is_empty():
+		c.add_child(UIKit.label("ยังไม่มีใครได้รับมอบหมาย — เลือกวิชาด้านล่างแล้วกด \"มอบให้ศิษย์\"", 13, WuxiaTheme.PAPER_DIM))
+	for d in studying:
+		var rate = SectManager.study_rate(test_sect, d, d.study_skill)
+		var at_lib = BuildingDB.post_type(test_sect, d) == "scripture_pavilion"
+		var per_day = rate * (2.0 if at_lib else (1.0 if d.post == "" else 0.0))
+		var block = MasterySys.block_reason(d, d.study_skill)
+		var note = ("ติดเกณฑ์: " + block) if block != "" else ("~%.0f วัน" % ceilf((100.0 - d.study_progress) / per_day) if per_day > 0 else "ไม่ได้ศึกษา (ประจำงานอื่นอยู่ — ย้ายมาหอตำราหรือปล่อยว่าง)")
+		var bar = ProgressBar.new()
+		bar.custom_minimum_size = Vector2(140, 14)
+		bar.value = d.study_progress
+		bar.show_percentage = true
+		var row = UIKit.row("%s → %s · %s%s" % [d.disciple_name, d.study_skill, note, " · มีอาจารย์ช่วยสอน" if SectManager.has_study_teacher(test_sect, d, d.study_skill) else ""], [
+			bar,
+			UIKit.button("ยกเลิก", func():
+				d.study_skill = ""
+				d.study_progress = 0.0
+				_refresh_window())])
+		c.add_child(row)
+
+## เลือกศิษย์ให้ศึกษาวิชา s: เรียงตามความเหมาะ บอกเหตุผลถ้าเรียนไม่ได้
+func _build_study_picker(c: VBoxContainer, s: String) -> void:
+	var box = VBoxContainer.new()
+	c.add_child(box)
+	box.add_child(UIKit.label("   เลือกศิษย์ที่จะศึกษา %s:" % s, 14, Color(1, 0.9, 0.55)))
+	var cands = test_sect.get_active_disciples().filter(func(d): return not d.is_child and not d.learned_skills.has(s))
+	cands.sort_custom(func(a, b): return MasterySys.fit_skill(a, s) > MasterySys.fit_skill(b, s))
+	if cands.is_empty():
+		box.add_child(UIKit.label("   ทุกคนรู้วิชานี้แล้ว", 13, WuxiaTheme.PAPER_DIM))
+	for d in cands.slice(0, 12):
+		var fit = MasterySys.fit_skill(d, s)
+		var block = MasterySys.block_reason(d, s)
+		var full = d.learned_skills.size() >= d.get_max_skills()
+		var notes: Array[String] = ["ความเหมาะ x%.2f" % fit, "ความเข้าใจ %d" % d.get_stat("comprehension")]
+		if block != "": notes.append("(ต้องฝึกความชำนาญเพิ่ม — ศึกษาไปจะค่อยๆ ขึ้น)")
+		if full: notes.append("จำวิชาได้เต็มแล้ว %d/%d" % [d.learned_skills.size(), d.get_max_skills()])
+		if d.study_skill != "": notes.append("กำลังศึกษา %s อยู่ (จะเปลี่ยน)" % d.study_skill)
+		box.add_child(UIKit.row("   %s (%s) · %s" % [d.disciple_name, d.realm_name, " · ".join(notes)], [
+			UIKit.button("เลือก", func():
+				d.study_skill = s
+				d.study_progress = 0.0
+				# ย้ายเข้าประจำหอตำราถ้ายังว่างที่ (เรียนเร็วกว่า) ไม่งั้นศึกษาเองตอนว่าง
+				if BuildingDB.post_type(test_sect, d) != "scripture_pavilion":
+					for inst in test_sect.instances("scripture_pavilion"):
+						if int(inst.level) > 0 and BuildingDB.assign_post(test_sect, d, inst.uid) == "": break
+				_study_pick = ""
+				UIKit.toast(%UIRoot, "%s เริ่มศึกษา %s%s" % [d.disciple_name, s, " (ประจำหอตำรา)" if BuildingDB.post_type(test_sect, d) == "scripture_pavilion" else " (หอตำราเต็ม — ศึกษาตอนว่าง)"], Color(0.6, 0.9, 1))
+				_refresh_window(), full)], MasterySys.fit_color(fit)))
+	box.add_child(UIKit.button("   ยกเลิกการเลือก", func():
+		_study_pick = ""
+		_refresh_window()))
 
 ## หลอมรวม 2-3 วิชาที่ศิษย์ขั้นแกนทองคำขึ้นไปรู้ เป็นวิชาใหม่ (ตั้งชื่อเอง) ส่งต่อให้รุ่นต่อไปได้
 var _fusion_master: DiscipleData

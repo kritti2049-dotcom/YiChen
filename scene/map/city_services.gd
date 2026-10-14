@@ -45,6 +45,23 @@ func build(service: String, c: VBoxContainer) -> void:
 		"palace": _build_palace(c)
 		"scripture": _build_scripture(c)
 		"sparring": _build_sparring(c)
+		"bookstore": _build_bookstore(c)
+
+## ร้านหนังสือ: วิชาขั้นมนุษย์ (เปลี่ยนสินค้าทุกรอบ ซื้อแล้วเข้าหอตำรา)
+func _build_bookstore(c: VBoxContainer) -> void:
+	say.call("เจ้าของร้าน: 'คัมภีร์พื้นฐานสำหรับศิษย์ใหม่ ราคาย่อมเยาขอรับ'")
+	c.add_child(UIKit.label("วิชาขั้นมนุษย์ เหมาะกับศิษย์ช่วงแรก (ซื้อแล้วเข้าหอตำรา มอบให้ศิษย์ศึกษาได้)", 13, WuxiaTheme.PAPER_DIM))
+	for i_o in SkillQuestSys.bookstore_offers(sect, city_id, _period()):
+		var o: Dictionary = i_o
+		var info = SkillDB.get_skill(o.skill)
+		var have = sect.library_skills.has(o.skill)
+		c.add_child(UIKit.row("%s (%s, พลัง %d) — %s · %d เงิน" % [o.skill, SkillDB.TYPE_NAMES.get(info.type, info.type), info.power, info.desc, o.price], [
+			UIKit.button("มีแล้ว" if have else "ซื้อ", func():
+				sect.money -= o.price
+				sect.add_library_skill(o.skill)
+				sect.log_event(sect.current_day, "ซื้อคัมภีร์ %s ที่ร้านหนังสือ%s (%d เงิน)" % [o.skill, city.name, o.price])
+				say.call("ได้คัมภีร์ %s เข้าหอตำราแล้ว" % o.skill)
+				refresh.call(), have or sect.money < o.price)]))
 
 func _period() -> int:
 	return int(sect.current_day / float(REFRESH_DAYS))

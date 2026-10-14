@@ -56,6 +56,9 @@ static func _win(sect: SectData, allies: Array) -> String:
 	if not drops.is_empty():
 		summary += ("\nของดรอปตกอยู่ที่พื้น (เดินไปเก็บ): " if ctx_type == "field" else "\nของดรอป: ") + MaterialDB.format_list(drops)
 	for a in alive: PawnSys.add_thought(a.ref, sect, "won_battle")
+	for a in alive:
+		var t = SkillQuestSys.try_insight(sect, a.ref, MasterySys.train_type(a.ref), GlobalGame.sect_manager, 3.0)
+		if t != "": summary += "\n" + RegEx.create_from_string("\\[/?[a-z]+[^\\]]*\\]").sub(t, "", true)
 	if ctx_type == "raid":
 		StorytellerSystem.raid_won(sect, GlobalGame.combat_enemies, alive.map(func(a): return a.ref), GlobalGame.combat_context.raid, GlobalGame.sect_manager)
 	var ctx_text = _context_win(sect, alive)

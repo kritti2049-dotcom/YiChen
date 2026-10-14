@@ -510,6 +510,8 @@ func _talk_talent(n: CityNPC, offer := 0) -> void:
 		return
 	var w = RosterSys.willingness(sect, e, offer)
 	var text = RosterSys.describe(e) + "\n\n── ความเต็มใจเข้าสำนัก: %d / ต้องการ %d ──" % [w.score, w.need]
+	var tb = SkillQuestSys.teach_block(sect, e)
+	if tb != "" and not e.get("taught", false): text += "\n(ขอเรียนวิชาประจำตัว: %s)" % tb
 	for l in w.lines:
 		text += "\n  %+d  %s" % [l.value, l.text]
 	var gcost = RosterSys.gift_cost(e)
@@ -534,6 +536,10 @@ func _talk_talent(n: CityNPC, offer := 0) -> void:
 				_talk_talent(n, offer)
 			_say(res.text)),
 		UIKit.button("เสนอเงิน +%d" % e.cost, func(): _talk_talent(n, offer + int(e.cost)), sect.money < offer + int(e.cost)),
+		UIKit.button(("ขอเรียนวิชา %s (%d)" % [e.get("skill", "-"), SkillQuestSys.teach_fee(e)]) if not e.get("taught", false) else "สอนวิชาให้แล้ว", func():
+			var msg = SkillQuestSys.teach(sect, e, avatar)
+			_talk_talent(n, offer)
+			_say(msg), SkillQuestSys.teach_block(sect, e) != ""),
 		UIKit.button("ไว้คราวหน้า", _close_window),
 	]
 	_dialog(e.name, text, buttons, Vector2(720, 480))

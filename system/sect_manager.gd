@@ -49,7 +49,7 @@ func sim_tick() -> void:
 	if not ev.is_empty() and sect.total_ticks >= ev.get("deadline", 0):
 		if ev.type == "raid": StorytellerSystem.auto_defend(sect, self)
 		else:
-			log_event("คนพเนจรรอนานเกินไปจึงเดินจากไป")
+			log_event("พ่อค้าเร่รอนานเกินไปจึงเดินจากไป" if ev.type == "peddler" else "คนพเนจรรอนานเกินไปจึงเดินจากไป")
 			sect.pending_event = {}
 
 func complete_construction(uid: String) -> void:
@@ -68,7 +68,12 @@ func complete_construction(uid: String) -> void:
 	ProductionSys.place_disciples(sect)
 
 ## ศึกษาคัมภีร์ในหอตำรา: ได้ความชำนาญสายของคัมภีร์ที่อ่าน และมีโอกาสสำเร็จวิชา (ถ้าความชำนาญถึงเกณฑ์)
-func do_study(d: DiscipleData) -> void:
+## ศึกษาคัมภีร์ 1 ครั้ง: ถ้าได้รับมอบหมายวิชาไว้ = ศึกษาวิชานั้น (ความคืบหน้าแน่นอน) · ไม่ได้มอบหมาย = สุ่มอ่านแบบเดิม
+## speed = ตัวคูณ (ศิษย์ว่างที่ศึกษาเองช้ากว่าศิษย์ประจำหอตำรา)
+func do_study(d: DiscipleData, speed := 1.0) -> void:
+	if d.study_skill != "":
+		_study_assigned(d, speed)
+		return
 	var unknown = current_sect.library_skills.filter(func(s): return not d.learned_skills.has(s))
 	if unknown.is_empty(): return
 	var learnable = unknown.filter(func(s): return MasterySys.can_learn(d, s))
@@ -82,10 +87,46 @@ func do_study(d: DiscipleData) -> void:
 		d.add_memory(current_day, "สำเร็จวิชา " + reading)
 		log_event("[color=cyan]%s ศึกษาคัมภีร์จนสำเร็จวิชา %s[/color]" % [d.disciple_name, reading], [d])
 
+## ความคืบหน้าต่อครั้ง = (15 + ความเข้าใจ x2) / ความยากตามขั้นวิชา x ความเหมาะกับวิชา x อาจารย์ช่วยสอน (x1.5 ถ้ามีคนในสำนักรู้วิชานี้)
+static func study_rate(sect: SectData, d: DiscipleData, skill: String) -> float:
+	# วิชาขั้นสูงใช้เวลานานขึ้น (ขั้นปฐพี x1.5, นภา x2 ...)
+	var tier = int(SkillDB.get_skill(skill).get("tier", 1))
+	var rate = (15.0 + d.get_stat("comprehension") * 2.0) * MasterySys.fit_skill(d, skill) / (1.0 + 0.5 * (tier - 1))
+	if has_study_teacher(sect, d, skill): rate *= 1.5
+	return rate
+
+static func has_study_teacher(sect: SectData, d: DiscipleData, skill: String) -> bool:
+	for o in sect.get_active_disciples():
+		if o != d and o.learned_skills.has(skill): return true
+	return false
+
+func _study_assigned(d: DiscipleData, speed: float) -> void:
+	var s = d.study_skill
+	if d.learned_skills.has(s) or not current_sect.library_skills.has(s):
+		d.study_skill = ""
+		d.study_progress = 0.0
+		return
+	var fit = MasterySys.fit_skill(d, s)
+	_gain_mastery(d, MasterySys.skill_type(s), maxi(1, roundi(MasterySys.GAIN_STUDY * fit * speed)))
+	# ยังไม่ชำนาญถึงเกณฑ์: ความคืบหน้าค้างที่ 95% จนกว่าความชำนาญจะถึง (ศึกษาต่อเพื่อเพิ่มความชำนาญ)
+	var cap = 100.0 if MasterySys.can_learn(d, s) else 95.0
+	d.study_progress = minf(cap, d.study_progress + study_rate(current_sect, d, s) * speed)
+	if d.study_progress < 100.0: return
+	if d.learned_skills.size() >= d.get_max_skills():
+		d.study_progress = 99.0
+		if current_day % 3 == 0: log_event("[color=orange]%s ศึกษา %s จบแล้ว แต่จำวิชาได้เต็มแล้ว (%d วิชา) — ให้ลืมวิชาเก่าก่อน[/color]" % [d.disciple_name, s, d.get_max_skills()], [d])
+		return
+	d.learned_skills.append(s)
+	d.add_memory(current_day, "สำเร็จวิชา " + s)
+	d.study_skill = ""
+	d.study_progress = 0.0
+	log_event("[color=cyan]%s ศึกษาคัมภีร์จนสำเร็จวิชา %s![/color]" % [d.disciple_name, s], [d])
+
 ## งานฝึกวิชา: ซ้อมอาวุธสายที่ถนัด (หรืออาวุธที่ถืออยู่)
 func train_mastery(d: DiscipleData) -> void:
 	var t = MasterySys.train_type(d)
 	_gain_mastery(d, t, maxi(1, roundi(MasterySys.GAIN_TRAINING * MasterySys.fit(d, t))))
+	SkillQuestSys.try_insight(current_sect, d, t, self)
 
 func _gain_mastery(d: DiscipleData, type: String, amount: int) -> void:
 	if MasterySys.gain(d, type, amount):
@@ -170,6 +211,7 @@ func process_daily_update() -> void:
 
 	# 7.6 เหมืองแร่หายากที่ยึดไว้ส่งแร่เข้าคลัง
 	LandmarkSys.daily(sect, self)
+	SkillQuestSys.daily(sect, self)
 
 	# 8. งานถอดรหัสคัมภีร์ในหอตำรา
 	process_research()

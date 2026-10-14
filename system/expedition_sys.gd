@@ -82,12 +82,26 @@ static func process_day(sect: SectData, day: int) -> Array[String]:
 							logs.append("%s เดินทางถึง%s พร้อมรับคำสั่ง (เข้าเมืองได้แล้ว)" % [d.disciple_name, target_name])
 						"secret_realm":
 							realm_team.append(d)
+						"meditate":
+							d.mission_phase = "working"
+							d.mission_days_left = SkillQuestSys.MEDITATE_DAYS
+							logs.append("%s เดินทางถึง%s เริ่มนั่งสมาธิพินิจร่องรอยวิชา (%d วัน)" % [d.disciple_name, target_name, SkillQuestSys.MEDITATE_DAYS])
+						"apprentice":
+							d.mission_phase = "working"
+							d.mission_days_left = SkillQuestSys.APPRENTICE_DAYS
+							logs.append("%s เดินทางถึง%s ฝากตัวเป็นศิษย์เรียนวิชา (%d วัน)" % [d.disciple_name, target_name, SkillQuestSys.APPRENTICE_DAYS])
 			"working":
-				_gather_one_day(sect, d)
+				match d.mission_type:
+					"meditate": SkillQuestSys.meditate_day(sect, d, logs)
+					"apprentice": SkillQuestSys.apprentice_day(sect, d)
+					_: _gather_one_day(sect, d)
 				d.mission_days_left -= 1
 				if d.mission_days_left <= 0:
 					_start_return(sect, d)
-					logs.append("%s เก็บวัตถุดิบที่%sเสร็จแล้ว กำลังเดินทางกลับ" % [d.disciple_name, target_name])
+					match d.mission_type:
+						"meditate": logs.append(SkillQuestSys.meditate_finish(sect, d))
+						"apprentice": logs.append(SkillQuestSys.apprentice_finish(sect, d))
+						_: logs.append("%s เก็บวัตถุดิบที่%sเสร็จแล้ว กำลังเดินทางกลับ" % [d.disciple_name, target_name])
 			"returning":
 				d.mission_days_left -= 1
 				if d.mission_days_left <= 0:

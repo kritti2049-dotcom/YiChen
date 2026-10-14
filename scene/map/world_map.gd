@@ -365,6 +365,9 @@ func _show_info(id: String) -> void:
 				var guard = "ผู้พิทักษ์ของ" + FactionDB.FACTIONS[owner].name if owner != "" else "สัตว์อสูรเจ้าถิ่น"
 				c.add_child(UIKit.button("ยึดครองพื้นที่ (สู้กับ%s)" % guard, func(): _start_combat(id, "claim")))
 			c.add_child(UIKit.button("ออกเก็บวัตถุดิบ (ไป %d + เก็บ %d + กลับ %d วัน)" % [route.days, ExpeditionSys.GATHER_WORK_DAYS, route.days], func(): _dispatch("gather", id)))
+			var stele = SkillQuestSys.stele_at(sect, id)
+			if not stele.is_empty():
+				c.add_child(UIKit.button("ส่งไปนั่งสมาธิที่%s (ไป %d + สมาธิ %d + กลับ %d วัน)" % [stele.name, route.days, SkillQuestSys.MEDITATE_DAYS, route.days], func(): _dispatch("meditate", id)))
 		WorldDB.NodeType.RIVAL_SECT, WorldDB.NodeType.GREAT_SECT:
 			var fid_s: String = n.get("faction", "")
 			var hostile_s = fid_s != "" and (sect.factions[fid_s].war or sect.factions[fid_s].relation < -40)
@@ -373,6 +376,9 @@ func _show_info(id: String) -> void:
 				c.add_child(UIKit.label("ต้องส่งศิษย์ไปเยือน/ประจำที่สำนักนี้ก่อน จึงจะเดินเข้าไปคุยกับผู้คน ดูหอคัมภีร์ และซื้อตัวคนได้", 13, WuxiaTheme.PAPER_DIM))
 			_add_picker(c, 4)
 			c.add_child(UIKit.button("ส่งไปเยือน/ประจำที่สำนัก (%d วัน)" % route.days, func(): _dispatch("station", id)))
+			if fid_s != "":
+				var rel_s: int = sect.factions[fid_s].relation
+				c.add_child(UIKit.button("ฝากศิษย์ไปเรียนวิชา (ไป %d + เรียน %d + กลับ %d วัน)%s" % [route.days, SkillQuestSys.APPRENTICE_DAYS, route.days, "" if rel_s >= SkillQuestSys.APPRENTICE_REL else " — ต้องสนิท %d+" % SkillQuestSys.APPRENTICE_REL], func(): _dispatch("apprentice", id), rel_s < SkillQuestSys.APPRENTICE_REL))
 			_add_faction_section(c, fid_s, id)
 		WorldDB.NodeType.SECRET_REALM:
 			var day = sect.current_day
@@ -410,6 +416,18 @@ func _add_faction_section(c: VBoxContainer, fid: String, node_id: String) -> voi
 		sect_manager.log_event(FactionSys.gift(sect, fid))
 		_refresh(), sect.money < FactionSys.gift_cost(sect, fid)))
 	c.add_child(row)
+	# แลกวิชา (สำนักที่สนิทเท่านั้น รอบละครั้ง)
+	var offer = SkillQuestSys.trade_offer(sect, fid)
+	if f.relation >= SkillQuestSys.TRADE_REL and offer != "" and not sect.library_skills.is_empty():
+		var traded = sect.completed_world_tasks.has(SkillQuestSys.trade_key(sect, fid))
+		var pick = OptionButton.new()
+		for s in sect.library_skills: pick.add_item(s)
+		c.add_child(UIKit.label("แลกวิชา: เขาเสนอ %s (ขั้น%s) — เลือกวิชาของเราที่จะมอบให้:" % [offer, SkillDB.TIER_NAMES[int(SkillDB.get_skill(offer).get("tier", 1))]], 13, Color(0.6, 0.9, 1)))
+		c.add_child(UIKit.row("", [pick, UIKit.button("แลกเปลี่ยน" if not traded else "รอบนี้แลกแล้ว", func():
+			sect_manager.log_event(SkillQuestSys.trade(sect, fid, pick.get_item_text(pick.selected)))
+			_refresh(), traded or sect.library_skills.has(offer))]))
+	elif f.relation < SkillQuestSys.TRADE_REL:
+		c.add_child(UIKit.label("แลกวิชา: ต้องสนิทกับสำนักนี้ %d+ (ตอนนี้ %+d)" % [SkillQuestSys.TRADE_REL, f.relation], 12, WuxiaTheme.PAPER_DIM))
 
 func _add_travelers_summary(c: VBoxContainer) -> void:
 	c.add_child(UIKit.section("ศิษย์ที่อยู่นอกสำนัก"))
@@ -458,7 +476,7 @@ func _dispatch(mission_type: String, target_id: String) -> void:
 	for d in _picked:
 		days = ExpeditionSys.dispatch(sect, d, mission_type, target_id)
 		names.append(d.disciple_name)
-	var verb = { "gather": "ออกเก็บวัตถุดิบที่", "station": "ไปประจำที่", "secret_realm": "บุก" }[mission_type]
+	var verb = { "gather": "ออกเก็บวัตถุดิบที่", "station": "ไปประจำที่", "secret_realm": "บุก", "meditate": "ไปนั่งสมาธิที่", "apprentice": "ไปฝากเรียนที่" }[mission_type]
 	sect_manager.log_event("ส่ง %s %s%s (เดินทาง %d วัน)" % [", ".join(names), verb, WorldDB.NODES[target_id].name, days])
 	_picked.clear()
 	GlobalGame.save_game()

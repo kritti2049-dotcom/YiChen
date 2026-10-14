@@ -214,6 +214,7 @@ static func _free_labor(sect: SectData, mgr: SectManager) -> void:
 	var shortage = food_shortage(sect)
 	var forage = 0
 	for d in free:
+		if d.study_skill != "": mgr.do_study(d, 1.0)
 		d.gain_experience(roundi(10.0 * MasterySys.fit(d, MasterySys.train_type(d))), sect.current_day)
 		d.needs.qi = minf(1.0, d.needs.get("qi", 0.5) + 0.12)
 		if shortage: forage += FORAGE_FOOD

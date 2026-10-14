@@ -82,16 +82,17 @@ static func reveal_one(sect: SectData) -> Dictionary:
 	return l
 
 static func kind_name(kind: String) -> String:
-	return { "ore": "เส้นแร่", "scripture": "คัมภีร์ลับ", "relic": "ของวิเศษ" }.get(kind, kind)
+	return { "ore": "เส้นแร่", "scripture": "คัมภีร์ลับ", "relic": "ของวิเศษ", "stele": "ศิลาจารึก" }.get(kind, kind)
 
 static func kind_color(kind: String) -> Color:
-	return { "ore": Color(1, 0.6, 0.2), "scripture": Color(0.4, 0.7, 1), "relic": Color(0.85, 0.5, 1) }.get(kind, Color.WHITE)
+	return { "ore": Color(1, 0.6, 0.2), "scripture": Color(0.4, 0.7, 1), "relic": Color(0.85, 0.5, 1), "stele": Color(0.9, 0.9, 0.6) }.get(kind, Color.WHITE)
 
 ## ข้อความสถานะบนแผงข้อมูลของ node
 static func status_text(sect: SectData, l: Dictionary) -> String:
 	if l.kind == "ore":
 		if sect.node_owner.get(l.node, "") == "player": return "กำลังขุด +%.1f %s/วัน" % [l.rate * sect.get_node_yield(l.node), MaterialDB.get_material_name(l.mat)]
 		return "ยึดครองถิ่นนี้เพื่อขุดแร่ (%s %.1f/วัน)" % [MaterialDB.get_material_name(l.mat), l.rate]
+	if l.kind == "stele": return "ส่งศิษย์ไปนั่งสมาธิ %d วัน ลุ้นตรัสรู้วิชาขั้น%s (เสี่ยงธาตุไฟ)" % [SkillQuestSys.MEDITATE_DAYS, SkillDB.TIER_NAMES[clampi(int(l.tier), 1, 5)]]
 	if l.claimed: return "ได้มาแล้ว"
 	if l.kind == "scripture": return "ยึดครองถิ่นนี้เพื่อได้คัมภีร์ (วิชาขั้น%s)" % SkillDB.TIER_NAMES[clampi(int(l.tier), 1, 5)]
 	return "ได้เมื่อ%s" % ("กวาดคู่แข่งครบในแดนลับ" if l.get("get", "") == "realm" else "ยึดครองถิ่นนี้")
